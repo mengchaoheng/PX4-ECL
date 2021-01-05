@@ -5,10 +5,6 @@
 
 #include "csvparser.h"
 
-#ifdef __cplusplus
-//extern "C" {
-#endif
-
 CsvParser *CsvParser_new(const char *filePath, const char *delimiter, int firstLineIsHeader) {
     CsvParser *csvParser = (CsvParser*)malloc(sizeof(CsvParser));
     if (filePath == NULL) {
@@ -230,7 +226,3 @@ void _CsvParser_setErrorMessage(CsvParser *csvParser, const char *errorMessage) 
 const char *CsvParser_getErrorMessage(CsvParser *csvParser) {
     return csvParser->errMsg_;
 }
-
-#ifdef __cplusplus
-//}
-#endif
