@@ -36,6 +36,23 @@ By following the steps you can run the unit tests
 ```
 make test
 ```
+## Post Proess ECL
+By following the steps mentioned below you can create a static library which can be included in projects and the post process application:
+```
+mkdir build/
+cd build/
+cmake ..
+make
+```
+The appliction would be in `build\main\postEcl`
+
+Run postEcl application,
+```
+cd main/
+./postEcl filename
+```
+
+The output file would be `ecloutput.csv`.
 ### Change Indicator / Unit Tests
 Change indication is the concept of running the EKF on different data-sets and compare the state of the EKF to a previous version. If a contributor makes a functional change that is run during the change_indication tests, this will produce a different output of the EKF's state. As the tests are run in CI, this checks if a contributor forgot to run the checks themselves and add the [new EKF's state outputs](https://github.com/PX4/ecl/blob/master/test/change_indication/iris_gps.csv) to the pull request.
 
