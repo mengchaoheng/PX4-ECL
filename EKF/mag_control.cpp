@@ -41,23 +41,6 @@
 
 void Ekf::controlMagFusion()
 {
-	// handle undefined behaviour
-	if (_params.mag_fusion_type > MAG_FUSE_TYPE_NONE) {
-		return;
-	}
-
-	// When operating without a magnetometer and no other source of yaw aiding is active,
-	// yaw fusion is run selectively to enable yaw gyro bias learning when stationary on
-	// ground and to prevent uncontrolled yaw variance growth
-	if (_params.mag_fusion_type == MAG_FUSE_TYPE_NONE) {
-		if (noOtherYawAidingThanMag())
-		{
-			_is_yaw_fusion_inhibited = true;
-			fuseHeading();
-		}
-		return;
-	}
-
 	checkMagFieldStrength();
 
 	// If we are on ground, reset the flight alignment flag so that the mag fields will be
@@ -67,24 +50,38 @@ void Ekf::controlMagFusion()
 		_num_bad_flight_yaw_events = 0;
 	}
 
-	if (_control_status.flags.mag_fault || !_control_status.flags.yaw_align) {
+	// When operating without a magnetometer and no other source of yaw aiding is active,
+	// yaw fusion is run selectively to enable yaw gyro bias learning when stationary on
+	// ground and to prevent uncontrolled yaw variance growth
+	// Also fuse zero heading innovation during the leveling fine alignment step to keep the yaw variance low
+	if (_params.mag_fusion_type >= MAG_FUSE_TYPE_NONE
+	    || _control_status.flags.mag_fault
+	    || !_control_status.flags.tilt_align) {
+
 		stopMagFusion();
+
+		if (noOtherYawAidingThanMag())
+		{
+			// TODO: setting _is_yaw_fusion_inhibited to true is required to tell
+			// fuseHeading to perform a "zero innovation heading fusion"
+			// We should refactor it to avoid using this flag here
+			_is_yaw_fusion_inhibited = true;
+			fuseHeading();
+			_is_yaw_fusion_inhibited = false;
+		}
 		return;
 	}
 
+	_mag_yaw_reset_req |= otherHeadingSourcesHaveStopped();
+	_mag_yaw_reset_req |= !_control_status.flags.yaw_align;
+	_mag_yaw_reset_req |= _mag_inhibit_yaw_reset_req;
+
 	if (noOtherYawAidingThanMag() && _mag_data_ready) {
-		if (_control_status.flags.in_air) {
-			checkHaglYawResetReq();
-			runInAirYawReset();
-			runVelPosReset();
-
-		} else {
-			runOnGroundYawReset();
-		}
-
 		// Determine if we should use simple magnetic heading fusion which works better when
 		// there are large external disturbances or the more accurate 3-axis fusion
 		switch (_params.mag_fusion_type) {
+		default:
+		/* fallthrough */
 		case MAG_FUSE_TYPE_AUTO:
 			selectMagAuto();
 			break;
@@ -98,10 +95,20 @@ void Ekf::controlMagFusion()
 		case MAG_FUSE_TYPE_3D:
 			startMag3DFusion();
 			break;
+		}
 
-		default:
-			selectMagAuto();
-			break;
+		if (_control_status.flags.in_air) {
+			checkHaglYawResetReq();
+			runInAirYawReset();
+			runVelPosReset(); // TODO: review this; a vel/pos reset can be requested from COG reset (for fixedwing) only
+
+		} else {
+			runOnGroundYawReset();
+		}
+
+		if (!_control_status.flags.yaw_align) {
+			// Having the yaw aligned is mandatory to continue
+			return;
 		}
 
 		checkMagDeclRequired();
@@ -137,7 +144,18 @@ void Ekf::runOnGroundYawReset()
 					       ? resetMagHeading(_mag_lpf.getState())
 					       : false;
 
-		_mag_yaw_reset_req = !has_realigned_yaw;
+		if (has_realigned_yaw) {
+			_mag_yaw_reset_req = false;
+			_control_status.flags.yaw_align = true;
+
+			// Handle the special case where we have not been constraining yaw drift or learning yaw bias due
+			// to assumed invalid mag field associated with indoor operation with a downwards looking flow sensor.
+			if (_mag_inhibit_yaw_reset_req) {
+				_mag_inhibit_yaw_reset_req = false;
+				// Zero the yaw bias covariance and set the variance to the initial alignment uncertainty
+				P.uncorrelateCovarianceSetVariance<1>(12, sq(_params.switch_on_gyro_bias * FILTER_UPDATE_PERIOD_S));
+			}
+		}
 	}
 }
 
@@ -154,8 +172,20 @@ void Ekf::runInAirYawReset()
 		if (canRealignYawUsingGps()) { has_realigned_yaw = realignYawGPS(); }
 		else if (canResetMagHeading()) { has_realigned_yaw = resetMagHeading(_mag_lpf.getState()); }
 
-		_mag_yaw_reset_req = !has_realigned_yaw;
-		_control_status.flags.mag_aligned_in_flight = has_realigned_yaw;
+		if (has_realigned_yaw) {
+			_mag_yaw_reset_req = false;
+			_control_status.flags.yaw_align = true;
+			_control_status.flags.mag_aligned_in_flight = true;
+
+			// Handle the special case where we have not been constraining yaw drift or learning yaw bias due
+			// to assumed invalid mag field associated with indoor operation with a downwards looking flow sensor.
+			if (_mag_inhibit_yaw_reset_req) {
+				_mag_inhibit_yaw_reset_req = false;
+				// Zero the yaw bias covariance and set the variance to the initial alignment uncertainty
+				P.uncorrelateCovarianceSetVariance<1>(12, sq(_params.switch_on_gyro_bias * FILTER_UPDATE_PERIOD_S));
+			}
+		}
+
 	}
 }
 
@@ -327,3 +357,12 @@ void Ekf::run3DMagAndDeclFusions()
 	}
 }
 
+bool Ekf::otherHeadingSourcesHaveStopped()
+{
+    // detect rising edge of noOtherYawAidingThanMag()
+    bool result = noOtherYawAidingThanMag() && _non_mag_yaw_aiding_running_prev;
+
+    _non_mag_yaw_aiding_running_prev = !noOtherYawAidingThanMag();
+
+    return  result;
+}

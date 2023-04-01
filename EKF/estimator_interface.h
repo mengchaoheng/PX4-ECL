@@ -94,7 +94,16 @@ public:
 	parameters *getParamHandle() { return &_params; }
 
 	// set vehicle landed status data
-	void set_in_air_status(bool in_air) { _control_status.flags.in_air = in_air; }
+	void set_in_air_status(bool in_air)
+	{
+		if (!in_air) {
+			_time_last_on_ground_us = _time_last_imu;
+
+		} else {
+			_time_last_in_air = _time_last_imu;
+		}
+		_control_status.flags.in_air = in_air;
+	}
 
 	// return true if the attitude is usable
 	bool attitude_valid() const { return ISFINITE(_output_new.quat_nominal(0)) && _control_status.flags.tilt_align; }
@@ -209,6 +218,14 @@ public:
 	const innovation_fault_status_u &innov_check_fail_status() const { return _innov_check_fail_status; }
 	const decltype(innovation_fault_status_u::flags) &innov_check_fail_status_flags() const { return _innov_check_fail_status.flags; }
 
+	const warning_event_status_u &warning_event_status() const { return _warning_events; }
+	const decltype(warning_event_status_u::flags) &warning_event_flags() const { return _warning_events.flags; }
+	void clear_warning_events() { _warning_events.value = 0; }
+
+	const information_event_status_u &information_event_status() const { return _information_events; }
+	const decltype(information_event_status_u::flags) &information_event_flags() const { return _information_events.flags; }
+	void clear_information_events() { _information_events.value = 0; }
+
 	bool isVehicleAtRest() const { return _control_status.flags.vehicle_at_rest; }
 
 	// Getter for the average imu update period in s
@@ -219,6 +236,9 @@ public:
 
 	// Getter for the baro sample on the delayed time horizon
 	const baroSample &get_baro_sample_delayed() const { return _baro_sample_delayed; }
+
+	const bool& global_origin_valid() const { return _NED_origin_initialised; }
+	const map_projection_reference_s& global_origin() const { return _pos_ref; }
 
 	void print_status();
 
@@ -301,7 +321,7 @@ protected:
 	Vector2f _gps_pos_test_ratio;		// GPS position innovation consistency check ratios
 	Vector2f _ev_vel_test_ratio;		// EV velocity innovation consistency check ratios
 	Vector2f _ev_pos_test_ratio ;		// EV position innovation consistency check ratios
-	Vector2f _aux_vel_test_ratio;		// Auxiliray horizontal velocity innovation consistency check ratio
+	Vector2f _aux_vel_test_ratio;		// Auxiliary horizontal velocity innovation consistency check ratio
 	Vector2f _baro_hgt_test_ratio;		// baro height innovation consistency check ratios
 	Vector2f _rng_hgt_test_ratio;		// range finder height innovation consistency check ratios
 	float _optflow_test_ratio{};		// Optical flow innovation consistency check ratio
@@ -320,6 +340,8 @@ protected:
 					// [1] Vertical position drift rate (m/s)
 					// [2] Filtered horizontal velocity (m/s)
 	uint64_t _time_last_move_detect_us{0};	// timestamp of last movement detection event in microseconds
+	uint64_t _time_last_on_ground_us{0};	///< last time we were on the ground (uSec)
+	uint64_t _time_last_in_air{0};		///< last time we were in air (uSec)
 	bool _gps_drift_updated{false};	// true when _gps_drift_metrics has been updated and is ready for retrieval
 
 	// data buffer instances
@@ -366,6 +388,11 @@ protected:
 	filter_control_status_u _control_status_prev{};
 
 	virtual float compensateBaroForDynamicPressure(const float baro_alt_uncompensated) const = 0;
+
+	// these are used to record single frame events for external monitoring and should NOT be used for
+	// state logic becasue they will be cleared externally after being read.
+	warning_event_status_u _warning_events{};
+	information_event_status_u _information_events{};
 
 private:
 

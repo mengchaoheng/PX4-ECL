@@ -607,7 +607,7 @@ void Ekf::updateQuaternion(const float innovation, const float variance, const f
 
 		// we reinitialise the covariance matrix and abort this fusion step
 		initialiseCovariance();
-		ECL_ERR_TIMESTAMPED("mag yaw fusion numerical error - covariance reset");
+		ECL_ERR("mag yaw fusion numerical error - covariance reset");
 		return;
 	}
 
@@ -646,13 +646,19 @@ void Ekf::updateQuaternion(const float innovation, const float variance, const f
 		// if we are in air we don't want to fuse the measurement
 		// we allow to use it when on the ground because the large innovation could be caused
 		// by interference or a large initial gyro bias
-		if (_control_status.flags.in_air) {
-			return;
-
-		} else {
+		if (!_control_status.flags.in_air && isTimedOut(_time_last_in_air, (uint64_t)5e6)) {
 			// constrain the innovation to the maximum set by the gate
+			// we need to delay this forced fusion to avoid starting it
+			// immediately after touchdown, when the drone is still armed
 			float gate_limit = sqrtf((sq(gate_sigma) * _heading_innov_var));
 			_heading_innov = math::constrain(innovation, -gate_limit, gate_limit);
+
+			// also reset the yaw gyro variance to converge faster and avoid
+			// being stuck on a previous bad estimate
+			resetZDeltaAngBiasCov();
+
+		} else {
+			return;
 		}
 
 	} else {
@@ -761,6 +767,10 @@ void Ekf::fuseHeading()
 				// Vehicle is at rest so use the last moving prediction as an observation
 				// to prevent the heading from drifting and to enable yaw gyro bias learning
 				// before takeoff.
+				if (fabsf(_last_static_yaw) < 1e-6f) {
+					_last_static_yaw = predicted_hdg;
+				}
+
 				measured_hdg = _last_static_yaw;
 
 			}
@@ -812,6 +822,10 @@ void Ekf::fuseHeading()
 				// Vehicle is at rest so use the last moving prediction as an observation
 				// to prevent the heading from drifting and to enable yaw gyro bias learning
 				// before takeoff.
+				if (fabsf(_last_static_yaw) < 1e-6f) {
+					_last_static_yaw = predicted_hdg;
+				}
+
 				measured_hdg = _last_static_yaw;
 
 			}

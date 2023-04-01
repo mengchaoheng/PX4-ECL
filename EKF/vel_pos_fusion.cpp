@@ -79,14 +79,26 @@ bool Ekf::fuseVerticalVelocity(const Vector3f &innov, const Vector2f &innov_gate
 
 	innov_var(2) = P(6, 6) + obs_var(2);
 	test_ratio(1) = sq(innov(2)) / (sq(innov_gate(1)) * innov_var(2));
+	_vert_vel_innov_ratio = innov(2) / sqrtf(innov_var(2));
+	_vert_vel_fuse_time_us = _time_last_imu;
+	bool innov_check_pass = (test_ratio(1) <= 1.0f);
 
-	const bool innov_check_pass = (test_ratio(1) <= 1.0f);
+	// if there is bad vertical acceleration data, then don't reject measurement,
+	// but limit innovation to prevent spikes that could destabilise the filter
+	float innovation;
+	if (_bad_vert_accel_detected && !innov_check_pass) {
+		const float innov_limit = innov_gate(1) * sqrtf(innov_var(2));
+		innovation = math::constrain(innov(2), -innov_limit, innov_limit);
+		innov_check_pass = true;
+	} else {
+		innovation = innov(2);
+	}
 
 	if (innov_check_pass) {
 		_time_last_ver_vel_fuse = _time_last_imu;
 		_innov_check_fail_status.flags.reject_ver_vel = false;
 
-		fuseVelPosHeight(innov(2), innov_var(2), 2);
+		fuseVelPosHeight(innovation, innov_var(2), 2);
 
 		return true;
 
@@ -97,7 +109,7 @@ bool Ekf::fuseVerticalVelocity(const Vector3f &innov, const Vector2f &innov_gate
 }
 
 bool Ekf::fuseHorizontalPosition(const Vector3f &innov, const Vector2f &innov_gate, const Vector3f &obs_var,
-				 Vector3f &innov_var, Vector2f &test_ratio)
+				 Vector3f &innov_var, Vector2f &test_ratio, bool inhibit_gate)
 {
 
 	innov_var(0) = P(7, 7) + obs_var(0);
@@ -107,7 +119,11 @@ bool Ekf::fuseHorizontalPosition(const Vector3f &innov, const Vector2f &innov_ga
 
 	const bool innov_check_pass = test_ratio(0) <= 1.0f;
 
-	if (innov_check_pass) {
+	if (innov_check_pass || inhibit_gate) {
+		if (inhibit_gate && test_ratio(0) > sq(100.0f / innov_gate(0))) {
+			// always protect against extreme values that could result in a NaN
+			return false;
+		}
 		if (!_fuse_hpos_as_odom) {
 			_time_last_hor_pos_fuse = _time_last_imu;
 
@@ -134,14 +150,25 @@ bool Ekf::fuseVerticalPosition(const Vector3f &innov, const Vector2f &innov_gate
 
 	innov_var(2) = P(9, 9) + obs_var(2);
 	test_ratio(1) = sq(innov(2)) / (sq(innov_gate(1)) * innov_var(2));
+	_vert_pos_innov_ratio = innov(2) / sqrtf(innov_var(2));
+	_vert_pos_fuse_attempt_time_us = _time_last_imu;
+	bool innov_check_pass = test_ratio(1) <= 1.0f;
 
-	const bool innov_check_pass = test_ratio(1) <= 1.0f;
+	// if there is bad vertical acceleration data, then don't reject measurement,
+	// but limit innovation to prevent spikes that could destabilise the filter
+	float innovation;
+	if (_bad_vert_accel_detected && !innov_check_pass) {
+		const float innov_limit = innov_gate(1) * sqrtf(innov_var(2));
+		innovation = math::constrain(innov(2), -innov_limit, innov_limit);
+		innov_check_pass = true;
+	} else {
+		innovation = innov(2);
+	}
 
 	if (innov_check_pass) {
 		_time_last_hgt_fuse = _time_last_imu;
 		_innov_check_fail_status.flags.reject_ver_pos = false;
-
-		fuseVelPosHeight(innov(2), innov_var(2), 5);
+		fuseVelPosHeight(innovation, innov_var(2), 5);
 
 		return true;
 

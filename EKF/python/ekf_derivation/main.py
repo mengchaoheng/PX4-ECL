@@ -12,9 +12,16 @@ def quat2Rot(q):
     q2 = q[2]
     q3 = q[3]
 
-    Rot = Matrix([[q0**2 + q1**2 - q2**2 - q3**2, 2*(q1*q2 - q0*q3), 2*(q1*q3 + q0*q2)],
-                  [2*(q1*q2 + q0*q3), q0**2 - q1**2 + q2**2 - q3**2, 2*(q2*q3 - q0*q1)],
-                   [2*(q1*q3-q0*q2), 2*(q2*q3 + q0*q1), q0**2 - q1**2 - q2**2 + q3**2]])
+    # Rot = Matrix([[q0**2 + q1**2 - q2**2 - q3**2, 2*(q1*q2 - q0*q3), 2*(q1*q3 + q0*q2)],
+    #               [2*(q1*q2 + q0*q3), q0**2 - q1**2 + q2**2 - q3**2, 2*(q2*q3 - q0*q1)],
+    #                [2*(q1*q3-q0*q2), 2*(q2*q3 + q0*q1), q0**2 - q1**2 - q2**2 + q3**2]])
+
+    # Use the simplified formula for unit quaternion to rotation matrix
+    # as it produces a simpler and more stable EKF derivation given
+    # the additional constraint: q0^2 + q1^2 + q2^2 + q3^2 = 1
+    Rot = Matrix([[1 - 2*q2**2 - 2*q3**2, 2*(q1*q2 - q0*q3), 2*(q1*q3 + q0*q2)],
+                  [2*(q1*q2 + q0*q3), 1 - 2*q1**2 - 2*q3**2, 2*(q2*q3 - q0*q1)],
+                   [2*(q1*q3-q0*q2), 2*(q2*q3 + q0*q1), 1 - 2*q1**2 - 2*q2**2]])
 
     return Rot
 
@@ -247,9 +254,13 @@ def body_frame_accel_observation(P,state,R_to_body,vx,vy,vz,wx,wy):
     vrel = R_to_body*Matrix([vx-wx,vy-wy,vz]) # predicted wind relative velocity
 
     # Use this nonlinear model for the prediction in the implementation only
-    # It uses a ballistic coefficient for each axis
-    # accXpred = -0.5*rho*vrel[0]*vrel[0]*BCXinv # predicted acceleration measured along X body axis
-    # accYpred = -0.5*rho*vrel[1]*vrel[1]*BCYinv # predicted acceleration measured along Y body axis
+    # It uses a ballistic coefficient for each axis and a propeller momentum drag coefficient
+    #
+    # accXpred = -sign(vrel[0]) * vrel[0]*(0.5*rho*vrel[0]/BCoefX + MCoef) # predicted acceleration measured along X body axis
+    # accYpred = -sign(vrel[1]) * vrel[1]*(0.5*rho*vrel[1]/BCoefY + MCoef) # predicted acceleration measured along Y body axis
+    #
+    # BcoefX and BcoefY have units of Kg/m^2
+    # Mcoef has units of 1/s
 
     # Use a simple viscous drag model for the linear estimator equations
     # Use the the derivative from speed to acceleration averaged across the

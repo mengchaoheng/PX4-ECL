@@ -126,7 +126,7 @@ public:
 	const Vector2f &getWindVelocity() const { return _state.wind_vel; };
 
 	// get the wind velocity var
-	Vector2f getWindVelocityVariance() const { return P.slice<2, 2>(22,22).diag(); }
+	Vector2f getWindVelocityVariance() const { return P.slice<2, 2>(22, 22).diag(); }
 
 	// get the true airspeed in m/s
 	void get_true_airspeed(float *tas) const;
@@ -151,7 +151,12 @@ public:
 
 	// get the ekf WGS-84 origin position and height and the system time it was last set
 	// return true if the origin is valid
-	bool get_ekf_origin(uint64_t *origin_time, map_projection_reference_s *origin_pos, float *origin_alt) const;
+	bool getEkfGlobalOrigin(uint64_t &origin_time, double &latitude, double &longitude, float &origin_alt) const;
+	bool setEkfGlobalOrigin(const double latitude, const double longitude, const float altitude);
+
+	float getEkfGlobalOriginAltitude() const { return _gps_alt_ref; }
+	bool setEkfGlobalOriginAltitude(const float altitude);
+
 
 	// get the 1-sigma horizontal and vertical position uncertainty of the ekf WGS-84 position
 	void get_ekf_gpos_accuracy(float *ekf_eph, float *ekf_epv) const;
@@ -212,12 +217,15 @@ public:
 	// get the estimated terrain vertical position relative to the NED origin
 	float getTerrainVertPos() const { return _terrain_vpos; };
 
+	// get the number of times the vertical terrain position has been reset
+	uint8_t getTerrainVertPosResetCounter() const { return _terrain_vpos_reset_counter; };
+
 	// get the terrain variance
 	float get_terrain_var() const { return _terrain_var; }
 
 	Vector3f getGyroBias() const { return _state.delta_ang_bias / _dt_ekf_avg; } // get the gyroscope bias in rad/s
 	Vector3f getAccelBias() const { return _state.delta_vel_bias / _dt_ekf_avg; } // get the accelerometer bias in m/s**2
-	const Vector3f& getMagBias() const { return _state.mag_B; }
+	const Vector3f &getMagBias() const { return _state.mag_B; }
 
 	Vector3f getGyroBiasVariance() const { return Vector3f{P(10, 10), P(11, 11), P(12, 12)} / _dt_ekf_avg; } // get the gyroscope bias variance in rad/s
 	Vector3f getAccelBiasVariance() const { return Vector3f{P(13, 13), P(14, 14), P(15, 15)} / _dt_ekf_avg; } // get the accelerometer bias variance in m/s**2
@@ -225,6 +233,8 @@ public:
 
 	// get GPS check status
 	void get_gps_check_status(uint16_t *val) const { *val = _gps_check_fail_status.value; }
+
+	const auto &state_reset_status() const { return _state_reset_status; }
 
 	// return the amount the local vertical position changed in the last reset and the number of reset events
 	void get_posD_reset(float *delta, uint8_t *counter) const
@@ -331,6 +341,7 @@ private:
 	Vector2f _hpos_pred_prev;		///< previous value of NE position state used by odometry fusion (m)
 	bool _hpos_prev_available{false};	///< true when previous values of the estimate and measurement are available for use
 	Dcmf _R_ev_to_ekf;			///< transformation matrix that rotates observations from the EV to the EKF navigation frame, initialized with Identity
+	bool _inhibit_ev_yaw_use{false};	///< true when the vision yaw data should not be used (e.g.: NE fusion requires true North)
 
 	// booleans true when fresh sensor data is available at the fusion time horizon
 	bool _gps_data_ready{false};	///< true when new GPS data has fallen behind the fusion time horizon and is available to be fused
@@ -351,11 +362,15 @@ private:
 	uint64_t _time_last_ver_vel_fuse{0};	///< time the last fusion of verticalvelocity measurements was performed (uSec)
 	uint64_t _time_last_delpos_fuse{0};	///< time the last fusion of incremental horizontal position measurements was performed (uSec)
 	uint64_t _time_last_of_fuse{0};		///< time the last fusion of optical flow measurements were performed (uSec)
+	uint64_t _time_last_flow_terrain_fuse{0}; ///< time the last fusion of optical flow measurements for terrain estimation were performed (uSec)
 	uint64_t _time_last_arsp_fuse{0};	///< time the last fusion of airspeed measurements were performed (uSec)
 	uint64_t _time_last_beta_fuse{0};	///< time the last fusion of synthetic sideslip measurements were performed (uSec)
 	uint64_t _time_last_fake_pos{0};	///< last time we faked position measurements to constrain tilt errors during operation without external aiding (uSec)
 
 	uint64_t _time_last_gps_yaw_fuse{0};	///< time the last fusion of GPS yaw measurements were performed (uSec)
+	uint64_t _time_last_gps_yaw_data{0};	///< time the last GPS yaw measurement was available (uSec)
+	uint8_t _nb_gps_yaw_reset_available{0}; ///< remaining number of resets allowed before switching to another aiding source
+
 
 	Vector2f _last_known_posNE;		///< last known local NE position vector (m)
 	float _imu_collection_time_adj{0.0f};	///< the amount of time the IMU collection needs to be advanced to meet the target set by FILTER_UPDATE_PERIOD_MS (sec)
@@ -381,6 +396,7 @@ private:
 	bool _mag_yaw_reset_req{false};		///< true when a reset of the yaw using the magnetometer data has been requested
 	bool _mag_decl_cov_reset{false};	///< true after the fuseDeclination() function has been used to modify the earth field covariances after a magnetic field reset event.
 	bool _synthetic_mag_z_active{false};	///< true if we are generating synthetic magnetometer Z measurements
+	bool _non_mag_yaw_aiding_running_prev{false};  ///< true when heading is being fused from other sources that are not the magnetometer (for example EV or GPS).
 
 	bool _is_yaw_fusion_inhibited{false};		///< true when yaw sensor use is being inhibited
 
@@ -390,7 +406,12 @@ private:
 	Vector3f _delta_angle_bias_var_accum;	///< kahan summation algorithm accumulator for delta angle bias variance
 
 	Vector3f _last_vel_obs;			///< last velocity observation (m/s)
-	Vector2f _last_fail_hvel_innov;	///< last failed horizontal velocity innovation (m/s)**2
+	Vector3f _last_vel_obs_var;		///< last velocity observation variance (m/s)**2
+	Vector2f _last_fail_hvel_innov;		///< last failed horizontal velocity innovation (m/s)**2
+	float _vert_pos_innov_ratio{0.f};	///< vertical position innovation divided by estimated standard deviation of innovation
+	uint64_t _vert_pos_fuse_attempt_time_us{0};	///< last system time in usec vertical position measurement fuson was attempted
+	float _vert_vel_innov_ratio{0.f};		///< standard deviation of vertical velocity innovation
+	uint64_t _vert_vel_fuse_time_us{0};	///< last system time in usec time vertical velocity measurement fuson was attempted
 
 	Vector3f _gps_vel_innov;	///< GPS velocity innovations (m/sec)
 	Vector3f _gps_vel_innov_var;	///< GPS velocity innovation variances ((m/sec)**2)
@@ -496,6 +517,7 @@ private:
 	// Terrain height state estimation
 	float _terrain_vpos{0.0f};		///< estimated vertical position of the terrain underneath the vehicle in local NED frame (m)
 	float _terrain_var{1e4f};		///< variance of terrain position estimate (m**2)
+	uint8_t _terrain_vpos_reset_counter{0};	///< number of times _terrain_vpos has been reset
 	uint64_t _time_last_hagl_fuse{0};		///< last system time that a range sample was fused by the terrain estimator
 	uint64_t _time_last_fake_hagl_fuse{0};	///< last system time that a fake range sample was fused by the terrain estimator
 	bool _terrain_initialised{false};	///< true when the terrain estimator has been initialized
@@ -510,6 +532,8 @@ private:
 	// imu fault status
 	uint64_t _time_bad_vert_accel{0};	///< last time a bad vertical accel was detected (uSec)
 	uint64_t _time_good_vert_accel{0};	///< last time a good vertical accel was detected (uSec)
+	bool _bad_vert_accel_detected{false};	///< true when bad vertical accelerometer data has been detected
+	uint16_t _clip_counter{0};		///< counter that increments when clipping ad decrements when not
 
 	// variables used to control range aid functionality
 	bool _is_range_aid_suitable{false};	///< true when range finder can be used in flight as the height reference instead of the primary height sensor
@@ -610,6 +634,8 @@ private:
 
 	inline void resetHorizontalPositionTo(const Vector2f &new_horz_pos);
 
+	inline void resetVerticalPositionTo(const float &new_vert_pos);
+
 	void resetHeight();
 
 	// fuse optical flow line of sight rate measurements
@@ -622,7 +648,7 @@ private:
 				  Vector3f &innov_var, Vector2f &test_ratio);
 
 	bool fuseHorizontalPosition(const Vector3f &innov, const Vector2f &innov_gate, const Vector3f &obs_var,
-				    Vector3f &innov_var, Vector2f &test_ratio);
+				    Vector3f &innov_var, Vector2f &test_ratiov, bool inhibit_gate = false);
 
 	bool fuseVerticalPosition(const Vector3f &innov, const Vector2f &innov_gate, const Vector3f &obs_var,
 				  Vector3f &innov_var, Vector2f &test_ratio);
@@ -647,9 +673,13 @@ private:
 	// update the terrain vertical position estimate using an optical flow measurement
 	void fuseFlowForTerrain();
 
-	// reset the heading and magnetic field states using the declination and magnetometer/external vision measurements
+	// reset the heading and magnetic field states using the declination and magnetometer measurements
 	// return true if successful
 	bool resetMagHeading(const Vector3f &mag_init, bool increase_yaw_var = true, bool update_buffer = true);
+
+	// reset the heading using the external vision measurements
+	// return true if successful
+	bool resetYawToEv();
 
 	// Do a forced re-alignment of the yaw angle to align with the horizontal velocity vector from the GPS.
 	// It is used to align the yaw angle after launch or takeoff for fixed wing vehicle.
@@ -700,8 +730,14 @@ private:
 	// measurement update with a single measurement
 	// returns true if fusion is performed
 	template <size_t ...Idxs>
-	bool measurementUpdate(const Vector24f &K, const SparseVector24f<Idxs...> &H, float innovation)
+	bool measurementUpdate(Vector24f &K, const SparseVector24f<Idxs...> &H, float innovation)
 	{
+		for (unsigned i = 0; i < 3; i++) {
+			if (_accel_bias_inhibit[i]) {
+				K(13 + i) = 0.0f;
+			}
+		}
+
 		// apply covariance correction via P_new = (I -K*H)*P
 		// first calculate expression for KHP
 		// then calculate P - KHP
@@ -758,12 +794,13 @@ private:
 
 	// control fusion of GPS observations
 	void controlGpsFusion();
-	void controlGpsYawFusion();
+	void controlGpsYawFusion(bool gps_checks_passing, bool gps_checks_failing);
 
 	// control fusion of magnetometer observations
 	void controlMagFusion();
 
 	bool noOtherYawAidingThanMag() const;
+	bool otherHeadingSourcesHaveStopped();
 
 	void checkHaglYawResetReq();
 	float getTerrainVPos() const { return isTerrainEstimateValid() ? _terrain_vpos : _last_on_ground_posD; }
@@ -889,6 +926,8 @@ private:
 	void clearMagCov();
 	void zeroMagCov();
 
+	void resetZDeltaAngBiasCov();
+
 	// uncorrelate quaternion states from other states
 	void uncorrelateQuatFromOtherStates();
 
@@ -941,7 +980,6 @@ private:
 	EKFGSF_yaw _yawEstimator;
 
 	int64_t _ekfgsf_yaw_reset_time{0};	///< timestamp of last emergency yaw reset (uSec)
-	uint64_t _time_last_on_ground_us{0};	///< last tine we were on the ground (uSec)
 	bool _do_ekfgsf_yaw_reset{false};	// true when an emergency yaw reset has been requested
 	uint8_t _ekfgsf_yaw_reset_count{0};	// number of times the yaw has been reset to the EKF-GSF estimate
 

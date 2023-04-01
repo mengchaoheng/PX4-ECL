@@ -203,7 +203,9 @@ bool Ekf::initialiseFilter()
 	}
 
 	// calculate the initial magnetic field and yaw alignment
-	_control_status.flags.yaw_align = resetMagHeading(_mag_lpf.getState(), false, false);
+	// but do not mark the yaw alignement complete as it needs to be
+	// reset once the leveling phase is done
+	resetMagHeading(_mag_lpf.getState(), false, false);
 
 	// initialise the state covariance matrix now we have starting values for all the states
 	initialiseCovariance();
@@ -223,6 +225,7 @@ bool Ekf::initialiseFilter()
 	_time_last_delpos_fuse = _time_last_imu;
 	_time_last_hor_vel_fuse = _time_last_imu;
 	_time_last_hagl_fuse = _time_last_imu;
+	_time_last_flow_terrain_fuse = _time_last_imu;
 	_time_last_of_fuse = _time_last_imu;
 
 	// reset the output predictor state history to match the EKF initial values
