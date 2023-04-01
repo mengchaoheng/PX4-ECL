@@ -34,7 +34,7 @@
 cmake_minimum_required(VERSION 3.0)
 
 project(ECL CXX)
-
+# set(ECL_STANDALONE 1)
 if(NOT CMAKE_BUILD_TYPE)
 	# force debug builds if we test ECL as standalone
 	if(BUILD_TESTING AND CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
