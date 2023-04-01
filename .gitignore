@@ -5,6 +5,7 @@
 
 .cache/
 build/
+results/
 
 */*.a
 .ninja_deps

@@ -53,6 +53,13 @@
         "tuple": "cpp",
         "type_traits": "cpp",
         "typeinfo": "cpp",
-        "variant": "cpp"
+        "variant": "cpp",
+        "__split_buffer": "cpp",
+        "array": "cpp",
+        "deque": "cpp",
+        "fstream": "cpp",
+        "sstream": "cpp",
+        "stack": "cpp",
+        "vector": "cpp"
     }
 }
