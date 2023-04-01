@@ -27,6 +27,7 @@ PostEkf::~PostEkf()
 
 void PostEkf::write_header()
 {
+    // write csv log head
     fprintf(_fp_out,"time_us,q0,q1,q2,q3,vn_m_s,ve_m_s,vd_m_s,n_m,e_m,d_m,\
 delta_ang_bias_0,delta_ang_bias_1,delta_ang_bias_2,\
 delta_vel_bias_0,delta_vel_bias_1,delta_vel_bias_2,\
@@ -49,19 +50,19 @@ void PostEkf::update()
     // read imu
     while ((imu_row = CsvParser_getRow(csv_imu)))
     {
-        
+        // restore data update flag
         mag_updated = false;
         baro_updated = false;
         gps_updated = false;
         status_updated = false;
 
-        // follow with PX4
+        // begin follow with PX4
         bool imu_updated = false;
         imuSample imu_sample_new {};
 
         uint64_t imu_dt = 0; // for tracking time slip later
 
-        // read imu data, like _sensor_combined_sub.update(&sensor_combined);
+        // begin read imu data, like _sensor_combined_sub.update(&sensor_combined);
         char** rowFields = CsvParser_getFields(imu_row);
         int field_count = CsvParser_getNumFields(imu_row);
         if (IMU_FIELD_COUNT != field_count) 
@@ -76,7 +77,9 @@ void PostEkf::update()
             receive_imu((const char**)rowFields);
         }
         CsvParser_destroy_row(imu_row);
+        // end to read.
 
+        // now we get a line imu data, and then following the px4 code.
         imu_sample_new.time_us = sensor_combined.timestamp;
         imu_sample_new.delta_ang_dt = sensor_combined.gyro_integral_dt * 1.e-6f;
         imu_sample_new.delta_ang = Vector3f{sensor_combined.gyro_rad} * imu_sample_new.delta_ang_dt;
@@ -91,6 +94,7 @@ void PostEkf::update()
 
         imu_dt = sensor_combined.gyro_integral_dt;
 
+        // remove the sensor change support
         // if (_sensor_selection_sub.updated() || (_device_id_accel == 0 || _device_id_gyro == 0))
 
         if (imu_updated) {
@@ -122,9 +126,11 @@ void PostEkf::update()
 
             if (_ekf.update()) {
                 PublishLocalPosition(now);
+                // publish something else...
+
                 // log ekf
                 output_csv(now);
-                // or 
+                // or log to output.txt by iostream.
                 matrix::Vector<float, 24> states = _ekf.getStateAtFusionHorizonAsVector();
                 output<< states(0)<<" "<<states(1)<<" "<<states(2)<<" "<<states(3)<<" "<<states(4)<<" "<<states(5)<<" "<<states(6)<<" "<<states(7)<<" "<<states(8)<<" "<<states(9)<<" "<<states(10)<<" "<<states(11)<<" "<<states(12)<<" "<<states(13)<<" "<<states(14)<<" "<<states(15)<<" "<<states(16)<<" "<<states(17)<<" "<<states(18)<<" "<<states(19)<<" "<<states(20)<<" "<<states(21)<<" "<<states(22)<<" "<<states(23) <<" "<<std::endl;
 
@@ -132,6 +138,9 @@ void PostEkf::update()
             }
         }
     }
+    // now is at the end of px4 code.
+
+    // free memory
     CsvParser_destroy(csv_imu);
     CsvParser_destroy(csv_mag);
     CsvParser_destroy(csv_baro);

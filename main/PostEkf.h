@@ -128,27 +128,6 @@ struct vehicle_status_s {
 	static constexpr uint8_t ARM_DISARM_REASON_UNIT_TEST = 13;
 };
 
-
-// enum {
-//    TIMESTAMP,
-//    GYRO_RAD_X,
-//    GYRO_RAD_Y,
-//    GYRO_RAD_Z,
-//    GYRO_INTEGRAL_DT,
-//    ACCELEROMETER_TIMESTAMP_RELATIVE,
-//    ACCELEROMETER_M_S2_X,
-//    ACCELEROMETER_M_S2_Y,
-//    ACCELEROMETER_M_S2_Z,
-//    ACCELEROMETER_INTEGRAL_DT,
-//    MAGNETOMETER_TIMESTAMP_RELATIVE,
-//    MAGNETOMETER_GA_X,
-//    MAGNETOMETER_GA_Y,
-//    MAGNETOMETER_GA_Z,
-//    BARO_TIMESTAMP_RELATIVE,
-//    BARO_ALT_METER,
-//    BARO_TEMP_CELCIUS,
-//    FIELD_COUNT,
-// };
 #define IMU_FIELD_COUNT 11
 #define MAG_FIELD_COUNT 7
 #define BARO_FIELD_COUNT 7
@@ -156,7 +135,6 @@ struct vehicle_status_s {
 #define STATUS_FIELD_COUNT 32
 
 #define FIELD_COUNT 23
-
 
 #define   TIMESTAMP 0
 #define   GYRO_RAD_X 1
