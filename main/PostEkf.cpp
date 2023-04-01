@@ -4,7 +4,6 @@
 #include <time.h>
 #include <stdio.h>
 #include<iostream>
-#define ECL_STANDALONE
 using math::constrain;
 using matrix::Eulerf;
 using matrix::Quatf;
@@ -18,7 +17,7 @@ PostEkf::PostEkf(std::string filename, std::string mag_name,std::string baro_nam
     csv_baro = CsvParser_new(_baro_name.c_str(), ",", 1);
     csv_gps = CsvParser_new(_gps_name.c_str(), ",", 1); 
     csv_status = CsvParser_new(_status_name.c_str(), ",", 1);    
-    _fp_out = fopen("ecloutput.txt", "w");
+    _fp_out = fopen("../results/ecloutput.csv", "w");
     if(_fp_out==NULL) _fp_out = stdout;
 }
 
@@ -28,19 +27,17 @@ PostEkf::~PostEkf()
 
 void PostEkf::write_header()
 {
-//     fprintf(_fp_out,"q0,q1,q2,q3,vn_m_s,ve_m_s,vd_m_s,n_m,e_m,d_m,\
-// delta_ang_bias_0,delta_ang_bias_1,delta_ang_bias_2,\
-// delta_vel_bias_0,delta_vel_bias_1,delta_vel_bias_2,\
-// mag_I_0,mag_I_1,mag_I_2,\
-// mag_B_0,mag_B_1,mag_B_2,\
-// wind_vel_0,wind_vel_1,\
-// roll_rad,pitch_rad,yaw_rad\n");
-// fprintf(_fp_out,"q0,q1,q2,q3,vn_m_s,ve_m_s,vd_m_s,n_m,e_m,d_m,\
-// delta_ang_bias_0,delta_ang_bias_1,delta_ang_bias_2,\
-// delta_vel_bias_0,delta_vel_bias_1,delta_vel_bias_2,\
-// mag_I_0,mag_I_1,mag_I_2,\
-// mag_B_0,mag_B_1,mag_B_2,\
-// wind_vel_0,wind_vel_1 \n");
+    fprintf(_fp_out,"time_us,q0,q1,q2,q3,vn_m_s,ve_m_s,vd_m_s,n_m,e_m,d_m,\
+delta_ang_bias_0,delta_ang_bias_1,delta_ang_bias_2,\
+delta_vel_bias_0,delta_vel_bias_1,delta_vel_bias_2,\
+mag_I_0,mag_I_1,mag_I_2,\
+mag_B_0,mag_B_1,mag_B_2,\
+wind_vel_0,wind_vel_1,\
+roll_rad,pitch_rad,yaw_rad\n");
+
+// fprintf(_fp_out,"q0,q1,q2,q3,vn_m_s,ve_m_s,vd_m_s,n_m,e_m,d_m, delta_ang_bias_0,delta_ang_bias_1,delta_ang_bias_2,delta_vel_bias_0,delta_vel_bias_1,delta_vel_bias_2, mag_I_0,mag_I_1,mag_I_2,mag_B_0,mag_B_1,mag_B_2, wind_vel_0,wind_vel_1 \n");
+
+// fprintf(_fp_out,"q0,q1,q2,q3 \n");
 }
 std::ofstream output("../results/output.txt");
 std::ofstream position_estimator("../results/position_estimator.txt");
@@ -48,9 +45,7 @@ std::ofstream velocity_estimator("../results/velocity_estimator.txt");
 std::ofstream euler_estimator("../results/euler_estimator.txt");
 void PostEkf::update()
 {
-    
-
-    // write_header();
+    write_header();
     // read imu
     while ((imu_row = CsvParser_getRow(csv_imu)))
     {
@@ -127,13 +122,11 @@ void PostEkf::update()
 
             if (_ekf.update()) {
                 PublishLocalPosition(now);
-                // output_csv();
+                // log ekf
+                output_csv(now);
+                // or 
                 matrix::Vector<float, 24> states = _ekf.getStateAtFusionHorizonAsVector();
                 output<< states(0)<<" "<<states(1)<<" "<<states(2)<<" "<<states(3)<<" "<<states(4)<<" "<<states(5)<<" "<<states(6)<<" "<<states(7)<<" "<<states(8)<<" "<<states(9)<<" "<<states(10)<<" "<<states(11)<<" "<<states(12)<<" "<<states(13)<<" "<<states(14)<<" "<<states(15)<<" "<<states(16)<<" "<<states(17)<<" "<<states(18)<<" "<<states(19)<<" "<<states(20)<<" "<<states(21)<<" "<<states(22)<<" "<<states(23) <<" "<<std::endl;
-                
-
-                
-
 
                 UpdateMagCalibration(now);
             }
@@ -145,19 +138,17 @@ void PostEkf::update()
     CsvParser_destroy(csv_status);
 }
 
-void PostEkf::output_csv()
+void PostEkf::output_csv(const hrt_abstime &timestamp)
 {
     matrix::Quatf q = _ekf.getQuaternion();
 
     Eulerf att = Eulerf(q);
 
-    // matrix::Vector<float, 24> states = _ekf.getStateAtFusionHorizonAsVector();
-    // fprintf(_fp_out,"%f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f \n,", states(0),states(1),states(2),states(3),states(4),states(5),states(6),states(7),states(8),states(9),states(10),states(11),states(12),states(13),states(14),states(15),states(16),states(17),states(18),states(19),states(20),states(21),states(22),states(23));
-
+    matrix::Vector<float, 24> states = _ekf.getStateAtFusionHorizonAsVector();
+    // fprintf(_fp_out,"%f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f \n", states(0),states(1),states(2),states(3),states(4),states(5),states(6),states(7),states(8),states(9),states(10),states(11),states(12),states(13),states(14),states(15),states(16),states(17),states(18),states(19),states(20),states(21),states(22),states(23)); //txt
     
-
-    // fprintf(_fp_out,"%f,%f,%f\n", att(0), att(1), att(2));
-    printf("att: %f,%f,%f\n", att(0), att(1), att(2));
+    fprintf(_fp_out,"%llu,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f\n", timestamp, states(0),states(1),states(2),states(3),states(4),states(5),states(6),states(7),states(8),states(9),states(10),states(11),states(12),states(13),states(14),states(15),states(16),states(17),states(18),states(19),states(20),states(21),states(22),states(23),att(0), att(1), att(2)); //csv
+    // printf("att: %f,%f,%f\n", att(0), att(1), att(2));
 }
 
 

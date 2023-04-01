@@ -400,7 +400,7 @@ private:
     CsvRow* status_row = nullptr;
 
     void write_header();
-    void output_csv();
+    void output_csv(const hrt_abstime &timestamp);
     void receive_imu(const char** row_fields);
     void receive_mag(const char** row_fields);
     void receive_baro(const char** row_fields);
