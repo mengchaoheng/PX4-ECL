@@ -25,87 +25,25 @@ roll_rad,pitch_rad,yaw_rad\n");
 void PostEkf::update()
 {
     // write_header();
-    // read imu
-    CsvParser* csv_imu = CsvParser_new(_file_name.c_str(), ",", 1);
-    CsvRow* imu_row = nullptr;
 
-    while ((imu_row = CsvParser_getRow(csv_imu)))
+    // read status
+    CsvParser* csv_status = CsvParser_new(_file_name.c_str(), ",", 1);
+    CsvRow* status_row = nullptr;
+
+    while ((status_row = CsvParser_getRow(csv_status)))
     {
-       char** rowFields = CsvParser_getFields(imu_row);
-       int field_count = CsvParser_getNumFields(imu_row);
-       if (IMU_FIELD_COUNT != field_count) 
+       char** rowFields = CsvParser_getFields(status_row);
+       int field_count = CsvParser_getNumFields(status_row);
+       if (FIELD_COUNT != field_count) 
        {
-          printf("skip line, cause imu col count %d!=%d", field_count, IMU_FIELD_COUNT);
+          printf("skip line, cause mag col count %d!=%d", field_count, FIELD_COUNT);
           continue;
        }
-       set_imu((const char**)rowFields);
+        receive_status((const char**)rowFields);
 
-    //    set_px4logstruct((const char**)rowFields);
-
-    //    _ekf_core.update();
-
-    //    output_csv();
-
-       CsvParser_destroy_row(imu_row);
+       CsvParser_destroy_row(status_row);
     }
-    CsvParser_destroy(csv_imu);
-
-    //read mag
-    CsvParser* csv_mag = CsvParser_new(_mag_name.c_str(), ",", 1);
-    CsvRow* mag_row = nullptr;
-
-    while ((mag_row = CsvParser_getRow(csv_mag)))
-    {
-       char** rowFields = CsvParser_getFields(mag_row);
-       int field_count = CsvParser_getNumFields(mag_row);
-       if (MAG_FIELD_COUNT != field_count) 
-       {
-          printf("skip line, cause mag col count %d!=%d", field_count, MAG_FIELD_COUNT);
-          continue;
-       }
-        set_mag((const char**)rowFields);
-
-       CsvParser_destroy_row(mag_row);
-    }
-    CsvParser_destroy(csv_mag);
-
-    //read baro
-    CsvParser* csv_baro = CsvParser_new(_baro_name.c_str(), ",", 1);
-    CsvRow* baro_row = nullptr;
-
-    while ((baro_row = CsvParser_getRow(csv_baro)))
-    {
-       char** rowFields = CsvParser_getFields(baro_row);
-       int field_count = CsvParser_getNumFields(baro_row);
-       if (BARO_FIELD_COUNT != field_count) 
-       {
-          printf("skip line, cause mag col count %d!=%d", field_count, BARO_FIELD_COUNT);
-          continue;
-       }
-        set_baro((const char**)rowFields);
-
-       CsvParser_destroy_row(baro_row);
-    }
-    CsvParser_destroy(csv_baro);
-
-    // read gps
-    CsvParser* csv_gps = CsvParser_new(_gps_name.c_str(), ",", 1);
-    CsvRow* gps_row = nullptr;
-
-    while ((gps_row = CsvParser_getRow(csv_gps)))
-    {
-       char** rowFields = CsvParser_getFields(gps_row);
-       int field_count = CsvParser_getNumFields(gps_row);
-       if (GPS_FIELD_COUNT != field_count) 
-       {
-          printf("skip line, cause mag col count %d!=%d", field_count, GPS_FIELD_COUNT);
-          continue;
-       }
-        set_gps((const char**)rowFields);
-
-       CsvParser_destroy_row(gps_row);
-    }
-    CsvParser_destroy(csv_gps);
+    CsvParser_destroy(csv_status);
 
 
 
@@ -160,6 +98,49 @@ void PostEkf::set_baro(const char** row_fields)
     record.baro_pressure_pa = atof(row_fields[BARO_PRESSURE_PA]);
     record.rho = atof(row_fields[RHO]);
     printf("[baro]:time %llu, baro_alt_meter %f, baro_temp_celcius %f, baro_pressure_pa %f rho %f \n", record.timestamp, record.baro_alt_meter, record.baro_temp_celcius, record.baro_pressure_pa,record.rho);
+
+}
+void PostEkf::receive_status(const char** row_fields)
+{
+    vehicle_status_s vehicle_status = {0}; 
+    vehicle_status.timestamp = atoi(row_fields[0]);
+    vehicle_status.nav_state_timestamp = atoi(row_fields[1]);
+    vehicle_status.failsafe_timestamp = atoi(row_fields[2]);
+    vehicle_status.armed_time = atoi(row_fields[3]);
+    vehicle_status.takeoff_time = atoi(row_fields[4]);
+    vehicle_status.onboard_control_sensors_present = atoi(row_fields[5]);
+    vehicle_status.onboard_control_sensors_enabled = atoi(row_fields[6]);
+    vehicle_status.onboard_control_sensors_health = atoi(row_fields[7]);
+    vehicle_status.nav_state = atoi(row_fields[8]);
+    vehicle_status.arming_state = atoi(row_fields[9]);
+    vehicle_status.hil_state = atoi(row_fields[10]);
+
+    vehicle_status.failsafe =  (bool)  atoi(row_fields[11]);
+    vehicle_status.system_type = atoi(row_fields[12]);
+    vehicle_status.system_id = atoi(row_fields[13]);
+    vehicle_status.component_id = atoi(row_fields[14]);
+    vehicle_status.vehicle_type = atoi(row_fields[15]);
+
+    vehicle_status.is_vtol =  (bool)  atoi(row_fields[16]);
+    vehicle_status.is_vtol_tailsitter =  (bool)  atoi(row_fields[17]);
+    vehicle_status.vtol_fw_permanent_stab =  (bool)  atoi(row_fields[18]);
+    vehicle_status.in_transition_mode =  (bool)  atoi(row_fields[19]);
+    vehicle_status.in_transition_to_fw =  (bool)  atoi(row_fields[20]);
+    vehicle_status.rc_signal_lost =  (bool)  atoi(row_fields[21]);
+    vehicle_status.rc_input_mode = atoi(row_fields[22]);
+
+    vehicle_status.data_link_lost =  (bool)  atoi(row_fields[23]);
+    vehicle_status.data_link_lost_counter = atoi(row_fields[24]);
+    vehicle_status.high_latency_data_link_lost =  (bool)  atoi(row_fields[25]);
+    vehicle_status.engine_failure =  (bool)  atoi(row_fields[26]);
+    vehicle_status.mission_failure =  (bool)  atoi(row_fields[27]);
+    vehicle_status.geofence_violated =  (bool)  atoi(row_fields[28]);
+
+    vehicle_status.failure_detector_status = atoi(row_fields[29]);
+    vehicle_status.latest_arming_reason = atoi(row_fields[30]);
+    vehicle_status.latest_disarming_reason = atoi(row_fields[31]);
+
+    printf("[status]: time %llu, nav_state_timestamp %llu, failsafe_timestamp %llu, armed_time %llu, takeoff_time %llu, onboard_control_sensors_present %d, onboard_control_sensors_enabled %d, onboard_control_sensors_health %d, nav_state %d, arming_state %d, hil_state %d, failsafe %f, system_type %d, system_id %d, component_id %d, vehicle_type %d, is_vtol %f, is_vtol_tailsitter %f, vtol_fw_permanent_stab %f, in_transition_mode %f, in_transition_to_fw %d, rc_signal_lost %f, rc_input_mode %d\n", vehicle_status.timestamp, vehicle_status.nav_state_timestamp, vehicle_status.failsafe_timestamp, vehicle_status.armed_time, vehicle_status.takeoff_time, vehicle_status.onboard_control_sensors_present, vehicle_status.onboard_control_sensors_enabled, vehicle_status.onboard_control_sensors_health, vehicle_status.nav_state, vehicle_status.arming_state, vehicle_status.hil_state,(float) vehicle_status.failsafe, vehicle_status.system_type, vehicle_status.system_id, vehicle_status.component_id, vehicle_status.vehicle_type, (float)vehicle_status.is_vtol, (float)vehicle_status.is_vtol_tailsitter, (float)vehicle_status.vtol_fw_permanent_stab, (float) vehicle_status.in_transition_mode, vehicle_status.in_transition_to_fw, (float)vehicle_status.rc_signal_lost, vehicle_status.rc_input_mode);
 
 }
 void PostEkf::set_gps(const char** row_fields)
