@@ -36,9 +36,9 @@ enum {
 //    FIELD_COUNT,
 // };
 #define IMU_FIELD_COUNT 10
-#define GPS_FIELD_COUNT 23
 #define MAG_FIELD_COUNT 4
 #define BARO_FIELD_COUNT 5
+#define GPS_FIELD_COUNT 23
 
 #define FIELD_COUNT 23
 
@@ -168,10 +168,13 @@ class PostEkf
 {
 private:
     std::string _file_name = {""};
+    std::string _mag_name = {""};
+    std::string _baro_name = {""};
+    std::string _gps_name = {""};
     Ekf _ekf_core;
     FILE * _fp_out = NULL;
 public:
-    PostEkf(std::string filename);
+    PostEkf(std::string filename, std::string mag_name,std::string baro_name,std::string gps_name);
     PostEkf() = delete;
     ~PostEkf();
 
@@ -180,7 +183,11 @@ public:
 private:
     void write_header();
     void output_csv();
-    void set_px4logstruct(const char** row_fields);
+    // void set_px4logstruct(const char** row_fields);
+    void set_imu(const char** row_fields);
+    void set_mag(const char** row_fields);
+    void set_baro(const char** row_fields);
+    void set_gps(const char** row_fields);
 };
 
 #endif // __POST_EKF_2021__
