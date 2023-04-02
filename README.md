@@ -39,7 +39,8 @@ make test
 ## Offline ECL
 By running the following command, you can use the ulg file of px4 to run the ekf algorithm offline.
 
-1. Put the .ulg file in the log_data folder and run the gen_csv_from_ulg.m file (need to pre-install python and ulog2csv). Note that you must use a log format compatible with px4 v1.12.3, otherwise you need to modify the program and recompile to get the data correctly.
+1. Put the .ulg file in the log_data folder and run the gen_csv_from_ulg.m file (need to pre-install python and ulog2csv). 
+> Note that you must use a log format compatible with px4 v1.12.3, otherwise you need to modify the program and recompile to get the data correctly.
 
 2. build ECL lib.
 ```
