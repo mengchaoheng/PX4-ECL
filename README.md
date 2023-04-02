@@ -37,20 +37,23 @@ By following the steps you can run the unit tests
 make test
 ```
 ## Post Proess ECL
-By following the steps mentioned below you can create a static library which can be included in projects and the post process application:
+By running the following command, you can use the ulg file of px4 to run the ekf algorithm offline.
+
+1. Put the .ulg file in the log_data folder and run the gen_csv_from_ulg.m file (need to pre-install python and ulog2csv)
+
+2. build ECL lib.
 ```
 mkdir build/
 cd build/
 cmake ..
 make
 ```
-The appliction would be in `build\main\postEcl`
-
-Run postEcl application,
+The appliction would be in `build\main\postEcl`, Run postEcl application
 ```
-cd main/
-./postEcl filename
+cd build/
+./main/postEcl
 ```
+3. run main.m in the log_data files. Make sure the correct ulg file name is set in gen_csv_from_ulg.m and main.m.
 
 The output file would be `ecloutput.csv`.
 ### Change Indicator / Unit Tests

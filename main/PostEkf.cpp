@@ -179,7 +179,7 @@ void PostEkf::receive_imu(const char** row_fields)
 
     sensor_combined.accelerometer_integral_dt = atoi(row_fields[ACCELEROMETER_INTEGRAL_DT]);
     sensor_combined.accelerometer_clipping = atoi(row_fields[ACC_CLIP]);
-    // printf("[sensor_combined]:time %llu, g1 %f, g2 %f, g3 %f, dt %u,  a1 %f, a2 %f, a3 %f, dt %u , clip %d \n", sensor_combined.timestamp, sensor_combined.gyro_rad[0], sensor_combined.gyro_rad[1], sensor_combined.gyro_rad[2], sensor_combined.gyro_integral_dt, sensor_combined.accelerometer_m_s2[0], sensor_combined.accelerometer_m_s2[1], sensor_combined.accelerometer_m_s2[2], sensor_combined.accelerometer_integral_dt,sensor_combined.accelerometer_clipping);
+    printf("[sensor_combined]:time %llu, g1 %f, g2 %f, g3 %f, dt %u,  a1 %f, a2 %f, a3 %f, dt %u , clip %d \n", sensor_combined.timestamp, sensor_combined.gyro_rad[0], sensor_combined.gyro_rad[1], sensor_combined.gyro_rad[2], sensor_combined.gyro_integral_dt, sensor_combined.accelerometer_m_s2[0], sensor_combined.accelerometer_m_s2[1], sensor_combined.accelerometer_m_s2[2], sensor_combined.accelerometer_integral_dt,sensor_combined.accelerometer_clipping);
 }
 void PostEkf::receive_mag(const char** row_fields)
 {
@@ -191,7 +191,7 @@ void PostEkf::receive_mag(const char** row_fields)
     magnetometer.magnetometer_ga[1] = atof(row_fields[MAGNETOMETER_GA_Y]);
     magnetometer.magnetometer_ga[2] = atof(row_fields[MAGNETOMETER_GA_Z]);
     magnetometer.calibration_count   = atoi(row_fields[CALIBRATION_COUNT]);
-    // printf("[magnetometer]:time %llu, m1 %f, m2 %f, m3 %f \n", magnetometer.timestamp, magnetometer.magnetometer_ga[0], magnetometer.magnetometer_ga[1], magnetometer.magnetometer_ga[2]);
+    printf("[magnetometer]:time %llu, m1 %f, m2 %f, m3 %f \n", magnetometer.timestamp, magnetometer.magnetometer_ga[0], magnetometer.magnetometer_ga[1], magnetometer.magnetometer_ga[2]);
 }
 void PostEkf::receive_baro(const char** row_fields)
 {
@@ -204,7 +204,7 @@ void PostEkf::receive_baro(const char** row_fields)
     airdata.baro_temp_celcius = atof(row_fields[BARO_TEMP_CELCIUS]);
     airdata.baro_pressure_pa = atof(row_fields[BARO_PRESSURE_PA]);
     airdata.rho = atof(row_fields[RHO]);
-    // printf("[airdata]:time %llu, baro_alt_meter %f, baro_temp_celcius %f, baro_pressure_pa %f rho %f \n", airdata.timestamp, airdata.baro_alt_meter, airdata.baro_temp_celcius, airdata.baro_pressure_pa,airdata.rho);
+    printf("[airdata]:time %llu, baro_alt_meter %f, baro_temp_celcius %f, baro_pressure_pa %f rho %f \n", airdata.timestamp, airdata.baro_alt_meter, airdata.baro_temp_celcius, airdata.baro_pressure_pa,airdata.rho);
 
 }
 void PostEkf::receive_gps(const char** row_fields)
@@ -246,7 +246,7 @@ void PostEkf::receive_gps(const char** row_fields)
 
     vehicle_gps_position.selected   = atoi(row_fields[SELECTED]);
 
-    // printf("[vehicle_gps_position]: time %llu, time_utc_usec %llu, lat %d, lon %d, alt %d, alt_ellipsoid %d, s_variance_m_s %f, c_variance_rad %f, eph %f, epv %f, hdop %f, vdop %f, noise_per_ms %d, jamming_indicator %d, vel_m_s %f, v1 %f, v2 %f, v3 %f, cog_rad %f, timestamp_time_relative %d, fix_type %d, vel_ned_valid %d, satellites_used %d\n", vehicle_gps_position.timestamp, vehicle_gps_position.time_utc_usec, vehicle_gps_position.lat, vehicle_gps_position.lon, vehicle_gps_position.alt, vehicle_gps_position.alt_ellipsoid, vehicle_gps_position.s_variance_m_s, vehicle_gps_position.c_variance_rad, vehicle_gps_position.eph, vehicle_gps_position.epv, vehicle_gps_position.hdop, vehicle_gps_position.vdop, vehicle_gps_position.noise_per_ms, vehicle_gps_position.jamming_indicator, vehicle_gps_position.vel_m_s, vehicle_gps_position.vel_n_m_s, vehicle_gps_position.vel_e_m_s, vehicle_gps_position.vel_d_m_s, vehicle_gps_position.cog_rad, vehicle_gps_position.timestamp_time_relative, vehicle_gps_position.fix_type, vehicle_gps_position.vel_ned_valid, vehicle_gps_position.satellites_used);
+    printf("[vehicle_gps_position]: time %llu, time_utc_usec %llu, lat %d, lon %d, alt %d, alt_ellipsoid %d, s_variance_m_s %f, c_variance_rad %f, eph %f, epv %f, hdop %f, vdop %f, noise_per_ms %d, jamming_indicator %d, vel_m_s %f, v1 %f, v2 %f, v3 %f, cog_rad %f, timestamp_time_relative %d, fix_type %d, vel_ned_valid %d, satellites_used %d\n", vehicle_gps_position.timestamp, vehicle_gps_position.time_utc_usec, vehicle_gps_position.lat, vehicle_gps_position.lon, vehicle_gps_position.alt, vehicle_gps_position.alt_ellipsoid, vehicle_gps_position.s_variance_m_s, vehicle_gps_position.c_variance_rad, vehicle_gps_position.eph, vehicle_gps_position.epv, vehicle_gps_position.hdop, vehicle_gps_position.vdop, vehicle_gps_position.noise_per_ms, vehicle_gps_position.jamming_indicator, vehicle_gps_position.vel_m_s, vehicle_gps_position.vel_n_m_s, vehicle_gps_position.vel_e_m_s, vehicle_gps_position.vel_d_m_s, vehicle_gps_position.cog_rad, vehicle_gps_position.timestamp_time_relative, vehicle_gps_position.fix_type, vehicle_gps_position.vel_ned_valid, vehicle_gps_position.satellites_used);
 
 }
 void PostEkf::receive_status(const char** row_fields)

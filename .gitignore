@@ -6,6 +6,7 @@
 .cache/
 build/
 results/
+csv_data/
 
 */*.a
 .ninja_deps
