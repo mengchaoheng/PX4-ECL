@@ -129,7 +129,7 @@ title('Yaw');
 legend('online','offline');%legend('boxoff');
 
 %% 
-PlotToFileColorPDF(fig1,'../results/RPY.png',10,15); % or 'RPY.pdf'
+PlotToFileColorPDF(fig1,'../results/RPY.pdf',10,15); % or 'RPY.pdf'
 %% and maybe more figure, all in the variable "log.data"
 fig2=figure;
 subplot(3,1,1);
@@ -165,7 +165,7 @@ title('Z');
 legend('online','offline');%legend('boxoff');
 
 %% 
-PlotToFileColorPDF(fig2,'../results/pos.png',10,15);% or 'pos.pdf'
+PlotToFileColorPDF(fig2,'../results/pos.pdf',10,15);% or 'pos.pdf'
 
 %% and maybe more figure, all in the variable "log.data"
 fig3=figure;
@@ -206,4 +206,4 @@ title('V_z');
 legend('online','offline');%legend('boxoff');
 
 %% 
-PlotToFileColorPDF(fig3,'../results/vel.png',10,15);% or 'vel.pdf'
+PlotToFileColorEPS(fig3,'../results/vel.pdf',10,15);% or 'vel.pdf'

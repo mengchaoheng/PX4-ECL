@@ -68,8 +68,11 @@ The offline version of ecl makes it easier to port to other platforms. You only 
 The following is a comparison between the online version of ekf and the offline version of ekf:
 
 <img src="./log_data/RPY.png" width="100%" height="100%" />
+
 <img src="./log_data/pos.png" width="100%" height="100%" />
+
 <img src="./log_data/vel.png" width="100%" height="100%" />
+
 ### Change Indicator / Unit Tests
 Change indication is the concept of running the EKF on different data-sets and compare the state of the EKF to a previous version. If a contributor makes a functional change that is run during the change_indication tests, this will produce a different output of the EKF's state. As the tests are run in CI, this checks if a contributor forgot to run the checks themselves and add the [new EKF's state outputs](https://github.com/PX4/ecl/blob/master/test/change_indication/iris_gps.csv) to the pull request.
 
