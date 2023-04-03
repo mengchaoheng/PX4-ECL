@@ -30,17 +30,14 @@ cmake ..
 make
 ```
 
-## Testing ECL
-By following the steps you can run the unit tests
-
-```
-make test
-```
 ## Offline ECL
+
+>In the latest version (main branch), this ECL project is update with px4 v1.14.0-beta2.
+
 By running the following command, you can use the ulg file of px4 to run the ekf algorithm offline.
 
 1. Put the .ulg file in the log_data folder and run the gen_csv_from_ulg.m file (need to pre-install python and ulog2csv). 
-> Note that you must use a log format compatible with px4 v1.12.3, otherwise you need to modify the program and recompile to get the data correctly.
+> Note that you must use a log format compatible with px4 v1.12.3 (or latter), otherwise you need to modify the program and recompile to get the data correctly.
 
 2. build ECL lib.
 ```
