@@ -174,7 +174,7 @@ add_subdirectory(airdata)
 add_subdirectory(EKF)
 add_subdirectory(geo)
 add_subdirectory(geo_lookup)
-# add_subdirectory(main)
+add_subdirectory(main)
 
 if(BUILD_TESTING AND CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
 	add_subdirectory(test)

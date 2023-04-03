@@ -6,6 +6,8 @@
 #include <string>
 #include "EKF/ekf.h"
 #include "csvparser.h"
+#include <mathlib/mathlib.h>
+#include "matrix/math.hpp"
 // TODO: create different type of data type
 /*
 enum {
@@ -14,7 +16,7 @@ enum {
 }
 */
 
-
+// typedef uint64_t	hrt_abstime;
 
 struct vehicle_status_s {
     uint64_t timestamp;
@@ -217,11 +219,12 @@ struct vehicle_local_position_s {
 	uint8_t vxy_reset_counter;
 	uint8_t vz_reset_counter;
 	uint8_t heading_reset_counter;
+	bool heading_good_for_control;
 	bool xy_global;
 	bool z_global;
 	bool dist_bottom_valid;
 	uint8_t dist_bottom_sensor_bitfield;
-	uint8_t _padding0[3]; // required for logger
+	bool dead_reckoning;
     static constexpr uint8_t DIST_BOTTOM_SENSOR_NONE = 0;
 	static constexpr uint8_t DIST_BOTTOM_SENSOR_RANGE = 1;
 	static constexpr uint8_t DIST_BOTTOM_SENSOR_FLOW = 2;
@@ -239,7 +242,9 @@ struct sensor_combined_s {
     float accelerometer_m_s2[3];		// average value acceleration measured in the FRD body frame XYZ-axis in m/s^2 over the last accelerometer sampling period
     uint32_t accelerometer_integral_dt;	// accelerometer measurement sampling period in microseconds
     uint8_t accelerometer_clipping;  // bitfield indicating if there was any accelerometer clipping (per axis) during the sampling period
-	uint8_t _padding0[3]; // required for logger
+	uint8_t gyro_clipping;
+	uint8_t accel_calibration_count;
+	uint8_t gyro_calibration_count;
 
     static constexpr int32_t RELATIVE_TIMESTAMP_INVALID = 2147483647;
 	static constexpr uint8_t CLIPPING_X = 1;
@@ -368,13 +373,28 @@ private:
     void receive_status(const char** row_fields);
 
 
+
     // follow px4
+	struct InFlightCalibration {
+		hrt_abstime last_us{0};         ///< last time the EKF was operating a mode that estimates accelerometer biases (uSec)
+		hrt_abstime total_time_us{0};   ///< accumulated calibration time since the last save
+		matrix::Vector3f bias{};
+		bool cal_available{false};      ///< true when an unsaved valid calibration for the XYZ accelerometer bias is available
+	};
+	InFlightCalibration _accel_cal{};
+	InFlightCalibration _gyro_cal{};
+	InFlightCalibration _mag_cal{};
+
+
     // time slip monitoring
 	uint64_t _integrated_time_us = 0;	///< integral of gyro delta time from start (uSec)
 	uint64_t _start_time_us = 0;		///< system time at EKF start (uSec)
 	int64_t _last_time_slip_us = 0;		///< Last time slip (uSec)
-    uint8_t _mag_calibration_count{0};
-    // uint8_t _imu_calibration_count{0};
+
+	uint8_t _accel_calibration_count{0};
+	uint8_t _baro_calibration_count{0};
+	uint8_t _gyro_calibration_count{0};
+	uint8_t _mag_calibration_count{0};
 	uint32_t _device_id_accel{0};
 	uint32_t _device_id_baro{0};
 	uint32_t _device_id_gyro{0};
@@ -401,6 +421,7 @@ private:
     float _param_ekf3_gnd_eff_dz{4.0f};
     float _param_ekf3_gnd_max_hgt{0.5f};
     float _param_ekf3_mag_decl{0.f};
+	int32_t _param_ekf2_imu_ctrl{3};
 
     bool _armed{false};
 
@@ -426,7 +447,13 @@ private:
     void UpdateBaroSample();
 	void UpdateGpsSample();
 	void UpdateMagSample();
+	void UpdateCalibration(const hrt_abstime &timestamp, InFlightCalibration &cal, const matrix::Vector3f &bias,
+			     const matrix::Vector3f &bias_variance, float bias_limit, bool bias_valid, bool learning_valid);
     void UpdateMagCalibration(const hrt_abstime &timestamp);
+	void UpdateAccelCalibration(const hrt_abstime &timestamp);
+	void UpdateGyroCalibration(const hrt_abstime &timestamp);
+
+	
 
 
 };

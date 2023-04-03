@@ -79,28 +79,54 @@ void PostEkf::update()
         CsvParser_destroy_row(imu_row);
         // end to read.
 
-        // now we get a line imu data, and then following the px4 code.
-        imu_sample_new.time_us = sensor_combined.timestamp;
-        imu_sample_new.delta_ang_dt = sensor_combined.gyro_integral_dt * 1.e-6f;
-        imu_sample_new.delta_ang = Vector3f{sensor_combined.gyro_rad} * imu_sample_new.delta_ang_dt;
-        imu_sample_new.delta_vel_dt = sensor_combined.accelerometer_integral_dt * 1.e-6f;
-        imu_sample_new.delta_vel = Vector3f{sensor_combined.accelerometer_m_s2} * imu_sample_new.delta_vel_dt;
 
-        if (sensor_combined.accelerometer_clipping > 0) {
-            imu_sample_new.delta_vel_clipping[0] = sensor_combined.accelerometer_clipping & sensor_combined.CLIPPING_X;
-            imu_sample_new.delta_vel_clipping[1] = sensor_combined.accelerometer_clipping & sensor_combined.CLIPPING_Y;
-            imu_sample_new.delta_vel_clipping[2] = sensor_combined.accelerometer_clipping & sensor_combined.CLIPPING_Z;
-        }
 
-        imu_dt = sensor_combined.gyro_integral_dt;
+        if (imu_updated) {
+			imu_sample_new.time_us = sensor_combined.timestamp;
+			imu_sample_new.delta_ang_dt = sensor_combined.gyro_integral_dt * 1.e-6f;
+			imu_sample_new.delta_ang = Vector3f{sensor_combined.gyro_rad} * imu_sample_new.delta_ang_dt;
+			imu_sample_new.delta_vel_dt = sensor_combined.accelerometer_integral_dt * 1.e-6f;
+			imu_sample_new.delta_vel = Vector3f{sensor_combined.accelerometer_m_s2} * imu_sample_new.delta_vel_dt;
+
+			if (sensor_combined.accelerometer_clipping > 0) {
+				imu_sample_new.delta_vel_clipping[0] = sensor_combined.accelerometer_clipping & sensor_combined_s::CLIPPING_X;
+				imu_sample_new.delta_vel_clipping[1] = sensor_combined.accelerometer_clipping & sensor_combined_s::CLIPPING_Y;
+				imu_sample_new.delta_vel_clipping[2] = sensor_combined.accelerometer_clipping & sensor_combined_s::CLIPPING_Z;
+			}
+
+			imu_dt = sensor_combined.gyro_integral_dt;
+
+			if (sensor_combined.accel_calibration_count != _accel_calibration_count) {
+
+				// PX4_DEBUG("%d - resetting accelerometer bias", _instance);
+
+				_ekf.resetAccelBias();
+				_accel_calibration_count = sensor_combined.accel_calibration_count;
+
+				// reset bias learning
+				_accel_cal = {};
+			}
+
+			if (sensor_combined.gyro_calibration_count != _gyro_calibration_count) {
+
+				// PX4_DEBUG("%d - resetting rate gyro bias", _instance);
+
+				_ekf.resetGyroBias();
+				_gyro_calibration_count = sensor_combined.gyro_calibration_count;
+
+				// reset bias learning
+				_gyro_cal = {};
+			}
+		}
 
         // remove the sensor change support
         // if (_sensor_selection_sub.updated() || (_device_id_accel == 0 || _device_id_gyro == 0))
 
         if (imu_updated) {
             const hrt_abstime now = imu_sample_new.time_us;
+            
             // push imu data into estimator
-		    _ekf.setIMUData(imu_sample_new);
+            _ekf.setIMUData(imu_sample_new);
             PublishAttitude(now); // publish attitude immediately (uses quaternion from output predictor)
 
             // integrate time to monitor time slippage
@@ -114,15 +140,15 @@ void PostEkf::update()
             }
 
             // update all other topics if they have new data
-            // if (_status_sub.updated())...
-            // instead 
-            UpdateVehicleStatusSample();
-
-            // if (_vehicle_land_detected_sub.updated())
-
+            // UpdateVehicleStatusSample instead of UpdateSystemFlagsSample and // if (_vehicle_land_detected_sub.updated())
+            
             UpdateBaroSample(); // Baro
             UpdateGpsSample(); // Gps
             UpdateMagSample(); // Mag
+            UpdateVehicleStatusSample();
+
+            // run the EKF update and output
+		    // const hrt_abstime ekf_update_start = hrt_absolute_time();
 
             if (_ekf.update()) {
                 PublishLocalPosition(now);
@@ -134,7 +160,10 @@ void PostEkf::update()
                 matrix::Vector<float, 24> states = _ekf.getStateAtFusionHorizonAsVector();
                 output<< states(0)<<" "<<states(1)<<" "<<states(2)<<" "<<states(3)<<" "<<states(4)<<" "<<states(5)<<" "<<states(6)<<" "<<states(7)<<" "<<states(8)<<" "<<states(9)<<" "<<states(10)<<" "<<states(11)<<" "<<states(12)<<" "<<states(13)<<" "<<states(14)<<" "<<states(15)<<" "<<states(16)<<" "<<states(17)<<" "<<states(18)<<" "<<states(19)<<" "<<states(20)<<" "<<states(21)<<" "<<states(22)<<" "<<states(23) <<" "<<std::endl;
 
+                UpdateAccelCalibration(now);
+                UpdateGyroCalibration(now);
                 UpdateMagCalibration(now);
+                // PublishSensorBias(now);
             }
         }
     }
@@ -497,30 +526,21 @@ void PostEkf::UpdateMagSample()
 
 			reset = true;
 
-		} else if (magnetometer.calibration_count > _mag_calibration_count) {
+		} else if (magnetometer.calibration_count != _mag_calibration_count) {
 			// existing calibration has changed, reset saved mag bias
 			printf("%d - mag id \n", _device_id_mag);
 			reset = true;
 		}
 
 		if (reset) {
-			_ekf.resetMagBias();
 			_device_id_mag = magnetometer.device_id;
 			_mag_calibration_count = magnetometer.calibration_count;
 
 			// reset magnetometer bias learning
-			_mag_cal_total_time_us = 0;
-			_mag_cal_last_us = 0;
-			_mag_cal_available = false;
+			_mag_cal = {};
 		}
 
         _ekf.setMagData(magSample{magnetometer.timestamp, Vector3f{magnetometer.magnetometer_ga}});
-
-		last_magnetometer.magnetometer_ga[0]=magnetometer.magnetometer_ga[0];
-		last_magnetometer.magnetometer_ga[1]=magnetometer.magnetometer_ga[1];
-		last_magnetometer.magnetometer_ga[2]=magnetometer.magnetometer_ga[2];
-		last_magnetometer.device_id = magnetometer.device_id;
-		last_magnetometer.calibration_count = magnetometer.calibration_count;
 
     }
 }
@@ -530,14 +550,13 @@ void PostEkf::PublishAttitude(const hrt_abstime &timestamp)
 		// generate vehicle attitude quaternion data
 		vehicle_attitude_s att;
 		att.timestamp_sample = timestamp;
-		const Quatf q{_ekf.calculate_quaternion()};
-		q.copyTo(att.q);
+		_ekf.getQuaternion().copyTo(att.q);
 
 		_ekf.get_quat_reset(&att.delta_q_reset[0], &att.quat_reset_counter);
 		att.timestamp = timestamp;
 		// _attitude_pub.publish(att);
         // The rotation of the tangent plane vs. geographical north
-        matrix::Eulerf euler(q);
+        matrix::Eulerf euler(_ekf.getQuaternion());
 
         euler_estimator<< timestamp <<" "<<euler(0) <<" "<<euler(1) <<" "
             <<euler(2)<<" "<<std::endl;	
@@ -577,11 +596,15 @@ void PostEkf::PublishLocalPosition(const hrt_abstime &timestamp)
 	lpos.v_xy_valid = _ekf.local_position_is_valid();
 	lpos.v_z_valid = true;
 
+	// TODO: some modules (e.g.: mc_pos_control) don't handle v_z_valid != z_valid properly
+	lpos.z_valid = _ekf.isLocalVerticalPositionValid() || _ekf.isLocalVerticalVelocityValid();
+	lpos.v_z_valid = _ekf.isLocalVerticalVelocityValid() || _ekf.isLocalVerticalPositionValid();
+
 	// Position of local NED origin in GPS / WGS84 frame
 	if (_ekf.global_origin_valid()) {
-		lpos.ref_timestamp = _ekf.global_origin().timestamp;
-		lpos.ref_lat = math::degrees(_ekf.global_origin().lat_rad); // Reference point latitude in degrees
-		lpos.ref_lon = math::degrees(_ekf.global_origin().lon_rad); // Reference point longitude in degrees
+		lpos.ref_timestamp = _ekf.global_origin().getProjectionReferenceTimestamp();
+		lpos.ref_lat = _ekf.global_origin().getProjectionReferenceLat(); // Reference point latitude in degrees
+		lpos.ref_lon = _ekf.global_origin().getProjectionReferenceLon(); // Reference point longitude in degrees
 		lpos.ref_alt = _ekf.getEkfGlobalOriginAltitude();           // Reference point in MSL altitude meters
 		lpos.xy_global = true;
 		lpos.z_global = true;
@@ -595,31 +618,21 @@ void PostEkf::PublishLocalPosition(const hrt_abstime &timestamp)
 		lpos.z_global = false;
 	}
 
+
 	Quatf delta_q_reset;
 	_ekf.get_quat_reset(&delta_q_reset(0), &lpos.heading_reset_counter);
 
 	lpos.heading = Eulerf(_ekf.getQuaternion()).psi();
 	lpos.delta_heading = Eulerf(delta_q_reset).psi();
+	lpos.heading_good_for_control = _ekf.isYawFinalAlignComplete();
 
+#if defined(CONFIG_EKF2_RANGE_FINDER)
 	// Distance to bottom surface (ground) in meters
 	// constrain the distance to ground to _rng_gnd_clearance
-	lpos.dist_bottom = math::max(_ekf.getTerrainVertPos() - lpos.z, _param_ekf3_min_rng );
+	lpos.dist_bottom = math::max(_ekf.getTerrainVertPos() - lpos.z, _param_ekf2_min_rng.get());
 	lpos.dist_bottom_valid = _ekf.isTerrainEstimateValid();
 	lpos.dist_bottom_sensor_bitfield = _ekf.getTerrainEstimateSensorBitfield();
-
-	if (!_had_valid_terrain) {
-		_had_valid_terrain = lpos.dist_bottom_valid;
-	}
-
-	// only consider ground effect if compensation is configured and the vehicle is armed (props spinning)
-	if ((_param_ekf3_gnd_eff_dz  > 0.0f) && _armed && lpos.dist_bottom_valid) {
-		// set ground effect flag if vehicle is closer than a specified distance to the ground
-		_ekf.set_gnd_effect_flag(lpos.dist_bottom < _param_ekf3_gnd_max_hgt );
-
-		// if we have no valid terrain estimate and never had one then use ground effect flag from land detector
-		// _had_valid_terrain is used to make sure that we don't fall back to using this option
-		// if we temporarily lose terrain data due to the distance sensor getting out of range
-	}
+#endif // CONFIG_EKF2_RANGE_FINDER
 
 	_ekf.get_ekf_lpos_accuracy(&lpos.eph, &lpos.epv);
 	_ekf.get_ekf_vel_accuracy(&lpos.evh, &lpos.evv);
@@ -629,6 +642,9 @@ void PostEkf::PublishLocalPosition(const hrt_abstime &timestamp)
 	_ekf.get_velD_reset(&lpos.delta_vz, &lpos.vz_reset_counter);
 	_ekf.get_posNE_reset(&lpos.delta_xy[0], &lpos.xy_reset_counter);
 	_ekf.get_velNE_reset(&lpos.delta_vxy[0], &lpos.vxy_reset_counter);
+
+	lpos.dead_reckoning = _ekf.control_status_flags().inertial_dead_reckoning
+			      || _ekf.control_status_flags().wind_dead_reckoning;
 
 	// get control limit information
 	_ekf.get_ekf_ctrl_limits(&lpos.vxy_max, &lpos.vz_max, &lpos.hagl_min, &lpos.hagl_max);
@@ -664,50 +680,110 @@ void PostEkf::PublishLocalPosition(const hrt_abstime &timestamp)
 
 
 }
-void PostEkf::UpdateMagCalibration(const hrt_abstime &timestamp)
+void PostEkf::UpdateCalibration(const hrt_abstime &timestamp, InFlightCalibration &cal, const matrix::Vector3f &bias,
+			     const matrix::Vector3f &bias_variance, float bias_limit, bool bias_valid, bool learning_valid)
 {
-    // Check if conditions are OK for learning of magnetometer bias values
-	// the EKF is operating in the correct mode and there are no filter faults
-	if (_ekf.control_status_flags().in_air && _ekf.control_status_flags().mag_3D && (_ekf.fault_status().value == 0)) {
-
-		if (_mag_cal_last_us != 0) {
-			_mag_cal_total_time_us += timestamp - _mag_cal_last_us;
-
-			// Start checking mag bias estimates when we have accumulated sufficient calibration time
-			if (_mag_cal_total_time_us > 30_s) {
-				_mag_cal_last_bias = _ekf.getMagBias();
-				_mag_cal_last_bias_variance = _ekf.getMagBiasVariance();
-				_mag_cal_available = true;
-			}
-		}
-
-		_mag_cal_last_us = timestamp;
-
-	} else {
-		// conditions are NOT OK for learning magnetometer bias, reset timestamp
-		// but keep the accumulated calibration time
-		_mag_cal_last_us = 0;
-
-		if (_ekf.fault_status().value != 0) {
-			// if a filter fault has occurred, assume previous learning was invalid and do not
-			// count it towards total learning time.
-			_mag_cal_total_time_us = 0;
-		}
+	// reset existing cal on takeoff
+	if (!_ekf.control_status_prev_flags().in_air && _ekf.control_status_flags().in_air) {
+		cal = {};
 	}
 
-	if (!_armed) {
-		// update stored declination value
-		if (!_mag_decl_saved) {
-			float declination_deg;
+	// Check if conditions are OK for learning of accelerometer bias values
+	// the EKF is operating in the correct mode and there are no filter faults
+	static constexpr float max_var_allowed = 1e-3f;
+	static constexpr float max_var_ratio = 1e2f;
 
-			if (_ekf.get_mag_decl_deg(&declination_deg)) {
-				_param_ekf3_mag_decl=(declination_deg);
-				_mag_decl_saved = true;
+	const bool valid = bias_valid
+			   && (bias_variance.max() < max_var_allowed)
+			   && (bias_variance.max() < max_var_ratio * bias_variance.min());
 
-				// if (!_multi_mode) {
-				// 	_param_ekf3_mag_decl.commit_no_notification();
-				// }
+	if (valid && learning_valid) {
+		// consider bias estimates stable when all checks pass consistently and bias hasn't changed more than 10% of the limit
+		const float bias_change_limit = 0.1f * bias_limit;
+
+		if ((cal.last_us != 0) && !(cal.bias - bias).longerThan(bias_change_limit)) {
+			cal.total_time_us += timestamp - cal.last_us;
+
+			if (cal.total_time_us > 30_s) {
+				cal.cal_available = true;
 			}
+
+		} else {
+			cal.total_time_us = 0;
+			cal.bias = bias;
+			cal.cal_available = false;
+		}
+
+		cal.last_us = timestamp;
+
+	} else {
+		// conditions are NOT OK for learning bias, reset timestamp
+		// but keep the accumulated calibration time
+		cal.last_us = 0;
+
+		if (!valid && (cal.total_time_us != 0)) {
+			// if a filter fault has occurred, assume previous learning was invalid and do not
+			// count it towards total learning time.
+			cal = {};
 		}
 	}
 }
+
+void PostEkf::UpdateMagCalibration(const hrt_abstime &timestamp)
+{
+    const bool bias_valid = (_ekf.control_status_flags().mag_hdg || _ekf.control_status_flags().mag_3D)
+				&& _ekf.control_status_flags().mag_aligned_in_flight
+				&& !_ekf.control_status_flags().mag_fault
+				&& !_ekf.control_status_flags().mag_field_disturbed;
+
+	const bool learning_valid = bias_valid && _ekf.control_status_flags().mag_3D;
+
+	UpdateCalibration(timestamp, _mag_cal, _ekf.getMagBias(), _ekf.getMagBiasVariance(), _ekf.getMagBiasLimit(),
+			  bias_valid, learning_valid);
+
+	// update stored declination value
+	if (!_mag_decl_saved) {
+		float declination_deg;
+
+		if (_ekf.get_mag_decl_deg(&declination_deg)) {
+			
+			if (PX4_ISFINITE(declination_deg) && (fabsf(declination_deg - _param_ekf3_mag_decl ) > 0.1f)) {
+				_param_ekf3_mag_decl=(declination_deg);
+				// _param_ekf3_mag_decl.commit_no_notification();
+			}
+
+			_mag_decl_saved = true;
+		}
+	}
+}
+
+void PostEkf::UpdateAccelCalibration(const hrt_abstime &timestamp)
+{
+	// the EKF is operating in the correct mode and there are no filter faults
+	const bool bias_valid = (_param_ekf2_imu_ctrl  & static_cast<int32_t>(ImuCtrl::AccelBias))
+				&& _ekf.control_status_flags().tilt_align
+				&& (_ekf.fault_status().value == 0)
+				&& !_ekf.fault_status_flags().bad_acc_bias
+				&& !_ekf.fault_status_flags().bad_acc_clipping
+				&& !_ekf.fault_status_flags().bad_acc_vertical
+				&& !_ekf.warning_event_flags().invalid_accel_bias_cov_reset;
+
+	const bool learning_valid = bias_valid && !_ekf.accel_bias_inhibited();
+
+	UpdateCalibration(timestamp, _accel_cal, _ekf.getAccelBias(), _ekf.getAccelBiasVariance(), _ekf.getAccelBiasLimit(),
+			  bias_valid, learning_valid);
+}
+
+void PostEkf::UpdateGyroCalibration(const hrt_abstime &timestamp)
+{
+	// the EKF is operating in the correct mode and there are no filter faults
+	const bool bias_valid = (_param_ekf2_imu_ctrl & static_cast<int32_t>(ImuCtrl::GyroBias))
+				&& _ekf.control_status_flags().tilt_align
+				&& (_ekf.fault_status().value == 0);
+
+	const bool learning_valid = bias_valid && !_ekf.gyro_bias_inhibited();
+
+	UpdateCalibration(timestamp, _gyro_cal, _ekf.getGyroBias(), _ekf.getGyroBiasVariance(), _ekf.getGyroBiasLimit(),
+			  bias_valid, learning_valid);
+}
+
