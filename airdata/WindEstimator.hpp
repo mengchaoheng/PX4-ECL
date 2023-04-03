@@ -40,7 +40,7 @@
 
 #include <ecl.h>
 #include <mathlib/mathlib.h>
-#include <matrix/math.hpp>
+#include "matrix/math.hpp"
 
 class WindEstimator
 {

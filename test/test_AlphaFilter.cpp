@@ -39,7 +39,7 @@
 
 #include <gtest/gtest.h>
 #include <cmath>
-#include <matrix/math.hpp>
+#include "matrix/math.hpp"
 
 #include "AlphaFilter/AlphaFilter.hpp"
 

@@ -321,7 +321,7 @@ void PostEkf::UpdateVehicleStatusSample()
         const bool is_fixed_wing = (vehicle_status.vehicle_type == vehicle_status_s::VEHICLE_TYPE_FIXED_WING);
 
         // only fuse synthetic sideslip measurements if conditions are met
-        _ekf.set_fuse_beta_flag(is_fixed_wing && (_param_ekf3_fuse_beta == 1));
+        // _ekf.set_fuse_beta_flag(is_fixed_wing && (_param_ekf3_fuse_beta == 1));
 
         // let the EKF know if the vehicle motion is that of a fixed wing (forward flight only relative to wind)
         _ekf.set_is_fixed_wing(is_fixed_wing);
@@ -409,7 +409,7 @@ void PostEkf::UpdateGpsSample()
     if(gps_updated)
     {
         // set gps data to ekf
-        gps_message gps_msg{
+        gpsMessage gps_msg{
 			.time_usec = vehicle_gps_position.timestamp,
 			.lat = vehicle_gps_position.lat,
 			.lon = vehicle_gps_position.lon,

@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- *   Copyright (C) 2015 PX4 Development Team. All rights reserved.
+ *   Copyright (C) 2015-2022 PX4 Development Team. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -37,6 +37,9 @@
  * Template RingBuffer.
  */
 
+#ifndef EKF_RINGBUFFER_H
+#define EKF_RINGBUFFER_H
+
 #include <inttypes.h>
 #include <cstdio>
 #include <cstring>
@@ -46,7 +49,7 @@ class RingBuffer
 {
 public:
 	explicit RingBuffer(size_t size) { allocate(size); }
-	RingBuffer() { allocate(1); }
+	RingBuffer() = delete;
 	~RingBuffer() { delete[] _buffer; }
 
 	// no copy, assignment, move, move assignment
@@ -70,7 +73,7 @@ public:
 			delete[] _buffer;
 		}
 
-		_buffer = new data_type[size]{};
+		_buffer = new data_type[size] {};
 
 		if (_buffer == nullptr) {
 			return false;
@@ -78,10 +81,7 @@ public:
 
 		_size = size;
 
-		_head = 0;
-		_tail = 0;
-
-		_first_write = true;
+		reset();
 
 		return true;
 	}
@@ -155,6 +155,32 @@ public:
 
 	int get_total_size() const { return sizeof(*this) + sizeof(data_type) * _size; }
 
+	int entries() const
+	{
+		int count = 0;
+
+		for (uint8_t i = 0; i < _size; i++) {
+			if (_buffer[i].time_us != 0) {
+				count++;
+			}
+		}
+
+		return count;
+	}
+
+	void reset()
+	{
+		if (_buffer) {
+			for (uint8_t i = 0; i < _size; i++) {
+				_buffer[i] = {};
+			}
+
+			_head = 0;
+			_tail = 0;
+			_first_write = true;
+		}
+	}
+
 private:
 	data_type *_buffer{nullptr};
 
@@ -164,3 +190,5 @@ private:
 
 	bool _first_write{true};
 };
+
+#endif // !EKF_RINGBUFFER_H

@@ -14,25 +14,7 @@ enum {
 }
 */
 
-/**
- * Absolute time, in microsecond units.
- *
- * Absolute time is measured from some arbitrary epoch shortly after
- * system startup.  It should never wrap or go backwards.
- */
-typedef uint64_t	hrt_abstime;
-//can't be use to control, just for data flow logi.
-#define    NAN          __builtin_nanf("0x7fc00000")
 
-#define PX4_ISFINITE(x) std::isfinite(x) //ISFINITE判断
-
-// User-defined integer literals for different time units.
-// The base unit is hrt_abstime in microseconds
-
-constexpr hrt_abstime operator "" _s(unsigned long long seconds)
-{
-	return hrt_abstime(seconds * 1000000ULL);
-}
 
 struct vehicle_status_s {
     uint64_t timestamp;
