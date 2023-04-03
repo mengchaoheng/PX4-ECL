@@ -25,8 +25,11 @@ addpath(genpath(pwd));
 
 d2r=pi/180;
 r2d=180/pi;
-%% two offline can be use, something different. px4 v12.3.0
-ulgFileName = '27eecd1c'; % the ulog file name  17_48_41
+%% two offline can be use, something different. 
+% the ulog file name  17_48_41 is px4 v12.3.0 , which test for px4v1.12.3
+% the ulog file name  212e9566, 50910528, 27eecd1c is px4 v13 , which test
+% for branch px4v1.14.0beta2.
+ulgFileName = '27eecd1c'; 
 tmp=[ ulgFileName '.mat'];
 % exist tmp var
 if exist(tmp,"file")
