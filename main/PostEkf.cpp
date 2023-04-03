@@ -203,6 +203,9 @@ void PostEkf::receive_imu(const char** row_fields)
 
     sensor_combined.accelerometer_integral_dt = atoi(row_fields[ACCELEROMETER_INTEGRAL_DT]);
     sensor_combined.accelerometer_clipping = atoi(row_fields[ACC_CLIP]);
+
+    sensor_combined.accel_calibration_count = atoi(row_fields[ACC_CALI]);
+    sensor_combined.gyro_calibration_count = atoi(row_fields[GYRO_CALI]);
     // printf("[sensor_combined]:time %llu, g1 %f, g2 %f, g3 %f, dt %u,  a1 %f, a2 %f, a3 %f, dt %u , clip %d \n", sensor_combined.timestamp, sensor_combined.gyro_rad[0], sensor_combined.gyro_rad[1], sensor_combined.gyro_rad[2], sensor_combined.gyro_integral_dt, sensor_combined.accelerometer_m_s2[0], sensor_combined.accelerometer_m_s2[1], sensor_combined.accelerometer_m_s2[2], sensor_combined.accelerometer_integral_dt,sensor_combined.accelerometer_clipping);
 }
 void PostEkf::receive_mag(const char** row_fields)
@@ -210,11 +213,13 @@ void PostEkf::receive_mag(const char** row_fields)
     
     magnetometer.timestamp   = atoi(row_fields[TIMESTAMP]);
     magnetometer.timestamp_sample   = atoi(row_fields[TIMESTAMP_SAMPLE]);
-    magnetometer.device_id   = atoi(row_fields[DEVICE_ID]);
+    magnetometer.device_id   = atoi(row_fields[MAG_DEVICE_ID]);
     magnetometer.magnetometer_ga[0] = atof(row_fields[MAGNETOMETER_GA_X]);
     magnetometer.magnetometer_ga[1] = atof(row_fields[MAGNETOMETER_GA_Y]);
     magnetometer.magnetometer_ga[2] = atof(row_fields[MAGNETOMETER_GA_Z]);
-    magnetometer.calibration_count   = atoi(row_fields[CALIBRATION_COUNT]);
+    magnetometer.calibration_count   = atoi(row_fields[MAG_CALIBRATION_COUNT]);
+
+    magnetometer.calibration_count   = atoi(row_fields[MAG_CALIBRATION_COUNT]);
     // printf("[magnetometer]:time %llu, m1 %f, m2 %f, m3 %f \n", magnetometer.timestamp, magnetometer.magnetometer_ga[0], magnetometer.magnetometer_ga[1], magnetometer.magnetometer_ga[2]);
 }
 void PostEkf::receive_baro(const char** row_fields)
@@ -222,12 +227,14 @@ void PostEkf::receive_baro(const char** row_fields)
     
     airdata.timestamp   = atoi(row_fields[TIMESTAMP]);
     airdata.timestamp_sample   = atoi(row_fields[TIMESTAMP_SAMPLE]);
-    airdata.baro_device_id   = atoi(row_fields[DEVICE_ID]);
+    airdata.baro_device_id   = atoi(row_fields[BARO_DEVICE_ID]);
 
     airdata.baro_alt_meter = atof(row_fields[BARO_ALT_METER]);
     airdata.baro_temp_celcius = atof(row_fields[BARO_TEMP_CELCIUS]);
     airdata.baro_pressure_pa = atof(row_fields[BARO_PRESSURE_PA]);
     airdata.rho = atof(row_fields[RHO]);
+
+    airdata.calibration_count   = atoi(row_fields[BARO_CALIBRATION_COUNT]);
     // printf("[airdata]:time %llu, baro_alt_meter %f, baro_temp_celcius %f, baro_pressure_pa %f rho %f \n", airdata.timestamp, airdata.baro_alt_meter, airdata.baro_temp_celcius, airdata.baro_pressure_pa,airdata.rho);
 
 }
@@ -279,11 +286,12 @@ void PostEkf::receive_status(const char** row_fields)
     vehicle_status.timestamp = atoi(row_fields[0]);
     vehicle_status.nav_state_timestamp = atoi(row_fields[1]);
     vehicle_status.failsafe_timestamp = atoi(row_fields[2]);
-    vehicle_status.armed_time = atoi(row_fields[3]);
-    vehicle_status.takeoff_time = atoi(row_fields[4]);
-    vehicle_status.onboard_control_sensors_present = atoi(row_fields[5]);
-    vehicle_status.onboard_control_sensors_enabled = atoi(row_fields[6]);
-    vehicle_status.onboard_control_sensors_health = atoi(row_fields[7]);
+    vehicle_status.onboard_control_sensors_present = atoi(row_fields[3]);
+    vehicle_status.onboard_control_sensors_enabled = atoi(row_fields[4]);
+    vehicle_status.onboard_control_sensors_health = atoi(row_fields[5]);
+    vehicle_status.armed_time = atoi(row_fields[6]);
+    vehicle_status.takeoff_time = atoi(row_fields[7]);
+    
     vehicle_status.nav_state = atoi(row_fields[8]);
     vehicle_status.arming_state = atoi(row_fields[9]);
     vehicle_status.hil_state = atoi(row_fields[10]);
@@ -300,18 +308,18 @@ void PostEkf::receive_status(const char** row_fields)
     vehicle_status.in_transition_mode =  (bool)  atoi(row_fields[19]);
     vehicle_status.in_transition_to_fw =  (bool)  atoi(row_fields[20]);
     vehicle_status.rc_signal_lost =  (bool)  atoi(row_fields[21]);
-    vehicle_status.rc_input_mode = atoi(row_fields[22]);
+    // vehicle_status.rc_input_mode = atoi(row_fields[22]);
 
-    vehicle_status.data_link_lost =  (bool)  atoi(row_fields[23]);
-    vehicle_status.data_link_lost_counter = atoi(row_fields[24]);
-    vehicle_status.high_latency_data_link_lost =  (bool)  atoi(row_fields[25]);
-    vehicle_status.engine_failure =  (bool)  atoi(row_fields[26]);
-    vehicle_status.mission_failure =  (bool)  atoi(row_fields[27]);
-    vehicle_status.geofence_violated =  (bool)  atoi(row_fields[28]);
+    vehicle_status.data_link_lost =  (bool)  atoi(row_fields[22]);
+    vehicle_status.data_link_lost_counter = atoi(row_fields[23]);
+    vehicle_status.high_latency_data_link_lost =  (bool)  atoi(row_fields[24]);
+    vehicle_status.engine_failure =  (bool)  atoi(row_fields[25]);
+    vehicle_status.mission_failure =  (bool)  atoi(row_fields[26]);
+    vehicle_status.geofence_violated =  (bool)  atoi(row_fields[27]);
 
-    vehicle_status.failure_detector_status = atoi(row_fields[29]);
-    vehicle_status.latest_arming_reason = atoi(row_fields[30]);
-    vehicle_status.latest_disarming_reason = atoi(row_fields[31]);
+    vehicle_status.failure_detector_status = atoi(row_fields[28]);
+    vehicle_status.latest_arming_reason = atoi(row_fields[29]);
+    vehicle_status.latest_disarming_reason = atoi(row_fields[30]);
 
     printf("[status]: time %llu, nav_state_timestamp %llu, failsafe_timestamp %llu, armed_time %llu, takeoff_time %llu, onboard_control_sensors_present %d, onboard_control_sensors_enabled %d, onboard_control_sensors_health %d, nav_state %d, arming_state %d, hil_state %d, failsafe %f, system_type %d, system_id %d, component_id %d, vehicle_type %d, is_vtol %f, is_vtol_tailsitter %f, vtol_fw_permanent_stab %f, in_transition_mode %f, in_transition_to_fw %d, rc_signal_lost %f, rc_input_mode %d\n", vehicle_status.timestamp, vehicle_status.nav_state_timestamp, vehicle_status.failsafe_timestamp, vehicle_status.armed_time, vehicle_status.takeoff_time, vehicle_status.onboard_control_sensors_present, vehicle_status.onboard_control_sensors_enabled, vehicle_status.onboard_control_sensors_health, vehicle_status.nav_state, vehicle_status.arming_state, vehicle_status.hil_state,(float) vehicle_status.failsafe, vehicle_status.system_type, vehicle_status.system_id, vehicle_status.component_id, vehicle_status.vehicle_type, (float)vehicle_status.is_vtol, (float)vehicle_status.is_vtol_tailsitter, (float)vehicle_status.vtol_fw_permanent_stab, (float) vehicle_status.in_transition_mode, vehicle_status.in_transition_to_fw, (float)vehicle_status.rc_signal_lost, vehicle_status.rc_input_mode);
 
@@ -327,7 +335,7 @@ void PostEkf::UpdateVehicleStatusSample()
         int field_count = CsvParser_getNumFields(status_row);
         if (STATUS_FIELD_COUNT != field_count) 
         {
-            printf("skip line, cause mag col count %d!=%d", field_count, STATUS_FIELD_COUNT);
+            printf("skip line, cause status col count %d!=%d", field_count, STATUS_FIELD_COUNT);
             return;
         }
         else
@@ -381,7 +389,7 @@ void PostEkf::UpdateBaroSample()
         int field_count = CsvParser_getNumFields(baro_row);
         if (BARO_FIELD_COUNT != field_count) 
         {
-            printf("skip line, cause mag col count %d!=%d", field_count, BARO_FIELD_COUNT);
+            printf("skip line, cause baro col count %d!=%d", field_count, BARO_FIELD_COUNT);
             return;
         }
         else{
@@ -420,7 +428,7 @@ void PostEkf::UpdateGpsSample()
         int field_count = CsvParser_getNumFields(gps_row);
         if (GPS_FIELD_COUNT != field_count) 
         {
-            printf("skip line, cause mag col count %d!=%d", field_count, GPS_FIELD_COUNT);
+            printf("skip line, cause gps col count %d!=%d", field_count, GPS_FIELD_COUNT);
             return;
         }
         else{

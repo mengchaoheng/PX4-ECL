@@ -112,11 +112,11 @@ struct vehicle_status_s {
 	static constexpr uint8_t ARM_DISARM_REASON_UNIT_TEST = 13;
 };
 
-#define IMU_FIELD_COUNT 11
+#define IMU_FIELD_COUNT 13
 #define MAG_FIELD_COUNT 7
-#define BARO_FIELD_COUNT 7
+#define BARO_FIELD_COUNT 8
 #define GPS_FIELD_COUNT 27
-#define STATUS_FIELD_COUNT 32
+#define STATUS_FIELD_COUNT 31
 
 #define FIELD_COUNT 23
 
@@ -131,18 +131,23 @@ struct vehicle_status_s {
 #define   ACCELEROMETER_M_S2_Z 8
 #define   ACCELEROMETER_INTEGRAL_DT 9
 #define   ACC_CLIP  10
+#define   ACC_CALI  11
+#define   GYRO_CALI  12
 
+#define   MAG_DEVICE_ID 2
 #define   MAGNETOMETER_GA_X 3
 #define   MAGNETOMETER_GA_Y 4
 #define   MAGNETOMETER_GA_Z 5
-#define   CALIBRATION_COUNT 6
+#define   MAG_CALIBRATION_COUNT 6
 
 #define   TIMESTAMP_SAMPLE 1 
-#define   DEVICE_ID 2 
+#define   BARO_DEVICE_ID 2 
 #define   BARO_ALT_METER 3
 #define   BARO_TEMP_CELCIUS 4
 #define   BARO_PRESSURE_PA 5
 #define   RHO 6
+#define   BARO_CALIBRATION_COUNT 7
+
 
 #define   TIME_UTC_USEC 1
 #define   LAT 2
@@ -242,7 +247,7 @@ struct sensor_combined_s {
     float accelerometer_m_s2[3];		// average value acceleration measured in the FRD body frame XYZ-axis in m/s^2 over the last accelerometer sampling period
     uint32_t accelerometer_integral_dt;	// accelerometer measurement sampling period in microseconds
     uint8_t accelerometer_clipping;  // bitfield indicating if there was any accelerometer clipping (per axis) during the sampling period
-	uint8_t gyro_clipping;
+	// uint8_t gyro_clipping;
 	uint8_t accel_calibration_count;
 	uint8_t gyro_calibration_count;
 
@@ -310,7 +315,9 @@ struct vehicle_air_data_s {
     float baro_pressure_pa;		// Absolute pressure in pascals
 
     float rho;						// air density
-    uint8_t _padding0[4]; // required for logger
+    
+	uint8_t calibration_count;
+	// uint8_t _padding0[4]; // required for logger
 };
 
 
