@@ -80,19 +80,43 @@ void PostEkf::update()
         // end to read.
 
         // now we get a line imu data, and then following the px4 code.
-        imu_sample_new.time_us = sensor_combined.timestamp;
-        imu_sample_new.delta_ang_dt = sensor_combined.gyro_integral_dt * 1.e-6f;
-        imu_sample_new.delta_ang = Vector3f{sensor_combined.gyro_rad} * imu_sample_new.delta_ang_dt;
-        imu_sample_new.delta_vel_dt = sensor_combined.accelerometer_integral_dt * 1.e-6f;
-        imu_sample_new.delta_vel = Vector3f{sensor_combined.accelerometer_m_s2} * imu_sample_new.delta_vel_dt;
+        if (imu_updated) {
+			imu_sample_new.time_us = sensor_combined.timestamp;
+			imu_sample_new.delta_ang_dt = sensor_combined.gyro_integral_dt * 1.e-6f;
+			imu_sample_new.delta_ang = Vector3f{sensor_combined.gyro_rad} * imu_sample_new.delta_ang_dt;
+			imu_sample_new.delta_vel_dt = sensor_combined.accelerometer_integral_dt * 1.e-6f;
+			imu_sample_new.delta_vel = Vector3f{sensor_combined.accelerometer_m_s2} * imu_sample_new.delta_vel_dt;
 
-        if (sensor_combined.accelerometer_clipping > 0) {
-            imu_sample_new.delta_vel_clipping[0] = sensor_combined.accelerometer_clipping & sensor_combined.CLIPPING_X;
-            imu_sample_new.delta_vel_clipping[1] = sensor_combined.accelerometer_clipping & sensor_combined.CLIPPING_Y;
-            imu_sample_new.delta_vel_clipping[2] = sensor_combined.accelerometer_clipping & sensor_combined.CLIPPING_Z;
-        }
+			if (sensor_combined.accelerometer_clipping > 0) {
+				imu_sample_new.delta_vel_clipping[0] = sensor_combined.accelerometer_clipping & sensor_combined_s::CLIPPING_X;
+				imu_sample_new.delta_vel_clipping[1] = sensor_combined.accelerometer_clipping & sensor_combined_s::CLIPPING_Y;
+				imu_sample_new.delta_vel_clipping[2] = sensor_combined.accelerometer_clipping & sensor_combined_s::CLIPPING_Z;
+			}
 
-        imu_dt = sensor_combined.gyro_integral_dt;
+			imu_dt = sensor_combined.gyro_integral_dt;
+
+			if (sensor_combined.accel_calibration_count != _accel_calibration_count) {
+
+				// PX4_DEBUG("%d - resetting accelerometer bias", _instance);
+
+				_ekf.resetAccelBias();
+				_accel_calibration_count = sensor_combined.accel_calibration_count;
+
+				// reset bias learning
+				_accel_cal = {};
+			}
+
+			if (sensor_combined.gyro_calibration_count != _gyro_calibration_count) {
+
+				// PX4_DEBUG("%d - resetting rate gyro bias", _instance);
+
+				_ekf.resetGyroBias();
+				_gyro_calibration_count = sensor_combined.gyro_calibration_count;
+
+				// reset bias learning
+				_gyro_cal = {};
+			}
+		}
 
         // remove the sensor change support
         // if (_sensor_selection_sub.updated() || (_device_id_accel == 0 || _device_id_gyro == 0))
@@ -134,6 +158,8 @@ void PostEkf::update()
                 matrix::Vector<float, 24> states = _ekf.getStateAtFusionHorizonAsVector();
                 output<< states(0)<<" "<<states(1)<<" "<<states(2)<<" "<<states(3)<<" "<<states(4)<<" "<<states(5)<<" "<<states(6)<<" "<<states(7)<<" "<<states(8)<<" "<<states(9)<<" "<<states(10)<<" "<<states(11)<<" "<<states(12)<<" "<<states(13)<<" "<<states(14)<<" "<<states(15)<<" "<<states(16)<<" "<<states(17)<<" "<<states(18)<<" "<<states(19)<<" "<<states(20)<<" "<<states(21)<<" "<<states(22)<<" "<<states(23) <<" "<<std::endl;
 
+                UpdateAccelCalibration(now);
+                UpdateGyroCalibration(now);
                 UpdateMagCalibration(now);
             }
         }
@@ -174,32 +200,36 @@ void PostEkf::receive_imu(const char** row_fields)
 
     sensor_combined.accelerometer_integral_dt = atoi(row_fields[ACCELEROMETER_INTEGRAL_DT]);
     sensor_combined.accelerometer_clipping = atoi(row_fields[ACC_CLIP]);
-    // printf("[sensor_combined]:time %llu, g1 %f, g2 %f, g3 %f, dt %u,  a1 %f, a2 %f, a3 %f, dt %u , clip %d \n", sensor_combined.timestamp, sensor_combined.gyro_rad[0], sensor_combined.gyro_rad[1], sensor_combined.gyro_rad[2], sensor_combined.gyro_integral_dt, sensor_combined.accelerometer_m_s2[0], sensor_combined.accelerometer_m_s2[1], sensor_combined.accelerometer_m_s2[2], sensor_combined.accelerometer_integral_dt,sensor_combined.accelerometer_clipping);
+
+    sensor_combined.accel_calibration_count = atoi(row_fields[ACC_CALI_COUNT]);
+    sensor_combined.gyro_calibration_count = atoi(row_fields[GYRO_CALI_COUNT]);
+    printf("[sensor_combined]:time %llu, g1 %f, g2 %f, g3 %f, dt %u,  a1 %f, a2 %f, a3 %f, dt %u , clip %d \n", sensor_combined.timestamp, sensor_combined.gyro_rad[0], sensor_combined.gyro_rad[1], sensor_combined.gyro_rad[2], sensor_combined.gyro_integral_dt, sensor_combined.accelerometer_m_s2[0], sensor_combined.accelerometer_m_s2[1], sensor_combined.accelerometer_m_s2[2], sensor_combined.accelerometer_integral_dt,sensor_combined.accelerometer_clipping);
 }
 void PostEkf::receive_mag(const char** row_fields)
 {
     
     magnetometer.timestamp   = atoi(row_fields[TIMESTAMP]);
     magnetometer.timestamp_sample   = atoi(row_fields[TIMESTAMP_SAMPLE]);
-    magnetometer.device_id   = atoi(row_fields[DEVICE_ID]);
+    magnetometer.device_id   = atoi(row_fields[MAG_DEVICE_ID]);
     magnetometer.magnetometer_ga[0] = atof(row_fields[MAGNETOMETER_GA_X]);
     magnetometer.magnetometer_ga[1] = atof(row_fields[MAGNETOMETER_GA_Y]);
     magnetometer.magnetometer_ga[2] = atof(row_fields[MAGNETOMETER_GA_Z]);
-    magnetometer.calibration_count   = atoi(row_fields[CALIBRATION_COUNT]);
-    // printf("[magnetometer]:time %llu, m1 %f, m2 %f, m3 %f \n", magnetometer.timestamp, magnetometer.magnetometer_ga[0], magnetometer.magnetometer_ga[1], magnetometer.magnetometer_ga[2]);
+    magnetometer.calibration_count   = atoi(row_fields[MAG_CALI_COUNT]);
+    printf("[magnetometer]:time %llu, m1 %f, m2 %f, m3 %f \n", magnetometer.timestamp, magnetometer.magnetometer_ga[0], magnetometer.magnetometer_ga[1], magnetometer.magnetometer_ga[2]);
 }
 void PostEkf::receive_baro(const char** row_fields)
 {
     
     airdata.timestamp   = atoi(row_fields[TIMESTAMP]);
     airdata.timestamp_sample   = atoi(row_fields[TIMESTAMP_SAMPLE]);
-    airdata.baro_device_id   = atoi(row_fields[DEVICE_ID]);
+    airdata.baro_device_id   = atoi(row_fields[BARO_DEVICE_ID]);
 
     airdata.baro_alt_meter = atof(row_fields[BARO_ALT_METER]);
     airdata.baro_temp_celcius = atof(row_fields[BARO_TEMP_CELCIUS]);
     airdata.baro_pressure_pa = atof(row_fields[BARO_PRESSURE_PA]);
     airdata.rho = atof(row_fields[RHO]);
-    // printf("[airdata]:time %llu, baro_alt_meter %f, baro_temp_celcius %f, baro_pressure_pa %f rho %f \n", airdata.timestamp, airdata.baro_alt_meter, airdata.baro_temp_celcius, airdata.baro_pressure_pa,airdata.rho);
+    airdata.calibration_count   = atoi(row_fields[BARO_CALI_COUNT]);
+    printf("[airdata]:time %llu, baro_alt_meter %f, baro_temp_celcius %f, baro_pressure_pa %f rho %f \n", airdata.timestamp, airdata.baro_alt_meter, airdata.baro_temp_celcius, airdata.baro_pressure_pa,airdata.rho);
 
 }
 void PostEkf::receive_gps(const char** row_fields)
@@ -241,7 +271,7 @@ void PostEkf::receive_gps(const char** row_fields)
 
     vehicle_gps_position.selected   = atoi(row_fields[SELECTED]);
 
-    // printf("[vehicle_gps_position]: time %llu, time_utc_usec %llu, lat %d, lon %d, alt %d, alt_ellipsoid %d, s_variance_m_s %f, c_variance_rad %f, eph %f, epv %f, hdop %f, vdop %f, noise_per_ms %d, jamming_indicator %d, vel_m_s %f, v1 %f, v2 %f, v3 %f, cog_rad %f, timestamp_time_relative %d, fix_type %d, vel_ned_valid %d, satellites_used %d\n", vehicle_gps_position.timestamp, vehicle_gps_position.time_utc_usec, vehicle_gps_position.lat, vehicle_gps_position.lon, vehicle_gps_position.alt, vehicle_gps_position.alt_ellipsoid, vehicle_gps_position.s_variance_m_s, vehicle_gps_position.c_variance_rad, vehicle_gps_position.eph, vehicle_gps_position.epv, vehicle_gps_position.hdop, vehicle_gps_position.vdop, vehicle_gps_position.noise_per_ms, vehicle_gps_position.jamming_indicator, vehicle_gps_position.vel_m_s, vehicle_gps_position.vel_n_m_s, vehicle_gps_position.vel_e_m_s, vehicle_gps_position.vel_d_m_s, vehicle_gps_position.cog_rad, vehicle_gps_position.timestamp_time_relative, vehicle_gps_position.fix_type, vehicle_gps_position.vel_ned_valid, vehicle_gps_position.satellites_used);
+    printf("[vehicle_gps_position]: time %llu, time_utc_usec %llu, lat %d, lon %d, alt %d, alt_ellipsoid %d, s_variance_m_s %f, c_variance_rad %f, eph %f, epv %f, hdop %f, vdop %f, noise_per_ms %d, jamming_indicator %d, vel_m_s %f, v1 %f, v2 %f, v3 %f, cog_rad %f, timestamp_time_relative %d, fix_type %d, vel_ned_valid %d, satellites_used %d\n", vehicle_gps_position.timestamp, vehicle_gps_position.time_utc_usec, vehicle_gps_position.lat, vehicle_gps_position.lon, vehicle_gps_position.alt, vehicle_gps_position.alt_ellipsoid, vehicle_gps_position.s_variance_m_s, vehicle_gps_position.c_variance_rad, vehicle_gps_position.eph, vehicle_gps_position.epv, vehicle_gps_position.hdop, vehicle_gps_position.vdop, vehicle_gps_position.noise_per_ms, vehicle_gps_position.jamming_indicator, vehicle_gps_position.vel_m_s, vehicle_gps_position.vel_n_m_s, vehicle_gps_position.vel_e_m_s, vehicle_gps_position.vel_d_m_s, vehicle_gps_position.cog_rad, vehicle_gps_position.timestamp_time_relative, vehicle_gps_position.fix_type, vehicle_gps_position.vel_ned_valid, vehicle_gps_position.satellites_used);
 
 }
 void PostEkf::receive_status(const char** row_fields)
@@ -250,41 +280,45 @@ void PostEkf::receive_status(const char** row_fields)
     vehicle_status.timestamp = atoi(row_fields[0]);
     vehicle_status.nav_state_timestamp = atoi(row_fields[1]);
     vehicle_status.failsafe_timestamp = atoi(row_fields[2]);
-    vehicle_status.armed_time = atoi(row_fields[3]);
-    vehicle_status.takeoff_time = atoi(row_fields[4]);
-    vehicle_status.onboard_control_sensors_present = atoi(row_fields[5]);
-    vehicle_status.onboard_control_sensors_enabled = atoi(row_fields[6]);
-    vehicle_status.onboard_control_sensors_health = atoi(row_fields[7]);
+
+    vehicle_status.onboard_control_sensors_present = atoi(row_fields[3]);
+    vehicle_status.onboard_control_sensors_enabled = atoi(row_fields[4]);
+    vehicle_status.onboard_control_sensors_health = atoi(row_fields[5]);
+
+    vehicle_status.armed_time = atoi(row_fields[6]);
+    vehicle_status.takeoff_time = atoi(row_fields[7]);
     vehicle_status.nav_state = atoi(row_fields[8]);
+
     vehicle_status.arming_state = atoi(row_fields[9]);
     vehicle_status.hil_state = atoi(row_fields[10]);
-
     vehicle_status.failsafe =  (bool)  atoi(row_fields[11]);
+
     vehicle_status.system_type = atoi(row_fields[12]);
     vehicle_status.system_id = atoi(row_fields[13]);
     vehicle_status.component_id = atoi(row_fields[14]);
-    vehicle_status.vehicle_type = atoi(row_fields[15]);
 
+    vehicle_status.vehicle_type = atoi(row_fields[15]);
     vehicle_status.is_vtol =  (bool)  atoi(row_fields[16]);
     vehicle_status.is_vtol_tailsitter =  (bool)  atoi(row_fields[17]);
+
     vehicle_status.vtol_fw_permanent_stab =  (bool)  atoi(row_fields[18]);
     vehicle_status.in_transition_mode =  (bool)  atoi(row_fields[19]);
     vehicle_status.in_transition_to_fw =  (bool)  atoi(row_fields[20]);
+
     vehicle_status.rc_signal_lost =  (bool)  atoi(row_fields[21]);
-    vehicle_status.rc_input_mode = atoi(row_fields[22]);
+    vehicle_status.data_link_lost =  (bool)  atoi(row_fields[22]);
+    vehicle_status.data_link_lost_counter = atoi(row_fields[23]);
 
-    vehicle_status.data_link_lost =  (bool)  atoi(row_fields[23]);
-    vehicle_status.data_link_lost_counter = atoi(row_fields[24]);
-    vehicle_status.high_latency_data_link_lost =  (bool)  atoi(row_fields[25]);
-    vehicle_status.engine_failure =  (bool)  atoi(row_fields[26]);
-    vehicle_status.mission_failure =  (bool)  atoi(row_fields[27]);
-    vehicle_status.geofence_violated =  (bool)  atoi(row_fields[28]);
+    vehicle_status.high_latency_data_link_lost =  (bool)  atoi(row_fields[24]);
+    vehicle_status.engine_failure =  (bool)  atoi(row_fields[25]);
+    vehicle_status.mission_failure =  (bool)  atoi(row_fields[26]);
+    vehicle_status.geofence_violated =  (bool)  atoi(row_fields[27]);
 
-    vehicle_status.failure_detector_status = atoi(row_fields[29]);
-    vehicle_status.latest_arming_reason = atoi(row_fields[30]);
-    vehicle_status.latest_disarming_reason = atoi(row_fields[31]);
+    vehicle_status.failure_detector_status = atoi(row_fields[28]);
+    vehicle_status.latest_arming_reason = atoi(row_fields[29]);
+    vehicle_status.latest_disarming_reason = atoi(row_fields[30]);
 
-    printf("[status]: time %llu, nav_state_timestamp %llu, failsafe_timestamp %llu, armed_time %llu, takeoff_time %llu, onboard_control_sensors_present %d, onboard_control_sensors_enabled %d, onboard_control_sensors_health %d, nav_state %d, arming_state %d, hil_state %d, failsafe %f, system_type %d, system_id %d, component_id %d, vehicle_type %d, is_vtol %f, is_vtol_tailsitter %f, vtol_fw_permanent_stab %f, in_transition_mode %f, in_transition_to_fw %d, rc_signal_lost %f, rc_input_mode %d\n", vehicle_status.timestamp, vehicle_status.nav_state_timestamp, vehicle_status.failsafe_timestamp, vehicle_status.armed_time, vehicle_status.takeoff_time, vehicle_status.onboard_control_sensors_present, vehicle_status.onboard_control_sensors_enabled, vehicle_status.onboard_control_sensors_health, vehicle_status.nav_state, vehicle_status.arming_state, vehicle_status.hil_state,(float) vehicle_status.failsafe, vehicle_status.system_type, vehicle_status.system_id, vehicle_status.component_id, vehicle_status.vehicle_type, (float)vehicle_status.is_vtol, (float)vehicle_status.is_vtol_tailsitter, (float)vehicle_status.vtol_fw_permanent_stab, (float) vehicle_status.in_transition_mode, vehicle_status.in_transition_to_fw, (float)vehicle_status.rc_signal_lost, vehicle_status.rc_input_mode);
+    printf("[status]: time %llu, nav_state_timestamp %llu, failsafe_timestamp %llu, armed_time %llu, takeoff_time %llu, onboard_control_sensors_present %llu, onboard_control_sensors_enabled %llu, onboard_control_sensors_health %llu, nav_state %d, arming_state %d, hil_state %d, failsafe %f, system_type %d, system_id %d, component_id %d, vehicle_type %d, is_vtol %f, is_vtol_tailsitter %f, vtol_fw_permanent_stab %f, in_transition_mode %f, in_transition_to_fw %d, rc_signal_lost %f\n", vehicle_status.timestamp, vehicle_status.nav_state_timestamp, vehicle_status.failsafe_timestamp, vehicle_status.armed_time, vehicle_status.takeoff_time, vehicle_status.onboard_control_sensors_present, vehicle_status.onboard_control_sensors_enabled, vehicle_status.onboard_control_sensors_health, vehicle_status.nav_state, vehicle_status.arming_state, vehicle_status.hil_state,(float) vehicle_status.failsafe, vehicle_status.system_type, vehicle_status.system_id, vehicle_status.component_id, vehicle_status.vehicle_type, (float)vehicle_status.is_vtol, (float)vehicle_status.is_vtol_tailsitter, (float)vehicle_status.vtol_fw_permanent_stab, (float) vehicle_status.in_transition_mode, vehicle_status.in_transition_to_fw, (float)vehicle_status.rc_signal_lost);
 
 
 }
@@ -321,7 +355,7 @@ void PostEkf::UpdateVehicleStatusSample()
         const bool is_fixed_wing = (vehicle_status.vehicle_type == vehicle_status_s::VEHICLE_TYPE_FIXED_WING);
 
         // only fuse synthetic sideslip measurements if conditions are met
-        _ekf.set_fuse_beta_flag(is_fixed_wing && (_param_ekf3_fuse_beta == 1));
+        _ekf.set_fuse_beta_flag(is_fixed_wing && (_param_ekf2_fuse_beta == 1));
 
         // let the EKF know if the vehicle motion is that of a fixed wing (forward flight only relative to wind)
         _ekf.set_is_fixed_wing(is_fixed_wing);
@@ -329,17 +363,6 @@ void PostEkf::UpdateVehicleStatusSample()
         // _preflt_checker.setVehicleCanObserveHeadingInFlight(vehicle_status.vehicle_type !=
         //         vehicle_status_s::VEHICLE_TYPE_ROTARY_WING);
 
-        _armed = (vehicle_status.arming_state == vehicle_status_s::ARMING_STATE_ARMED);
-
-        // update standby (arming state) flag
-        // const bool standby = (vehicle_status.arming_state == vehicle_status_s::ARMING_STATE_STANDBY);
-
-        // if (_standby != standby) {
-        //     _standby = standby;
-
-        //     // reset preflight checks if transitioning in or out of standby arming state
-        //     _preflt_checker.reset();
-        // }
     }
 }
 void PostEkf::UpdateBaroSample()
@@ -369,14 +392,31 @@ void PostEkf::UpdateBaroSample()
     }
     if(baro_updated)
     {
+        bool reset = false;
+
+		// check if barometer has changed
+		if (airdata.baro_device_id != _device_id_baro) {
+			if (_device_id_baro != 0) {
+				ECL_INFO("baro sensor ID changed %" PRIu32 " -> %" PRIu32, _device_id_baro, airdata.baro_device_id);
+			}
+
+			reset = true;
+
+		} else if (airdata.calibration_count > _baro_calibration_count) {
+			// existing calibration has changed, reset saved baro bias
+			ECL_INFO("- baro %" PRIu32 " calibration updated, resetting bias", _device_id_baro);
+			reset = true;
+		}
+
+		if (reset) {
+			// TODO: reset baro ref and bias estimate?
+			_device_id_baro = airdata.baro_device_id;
+			_baro_calibration_count = airdata.calibration_count;
+		}
         // set baro data to ekf, follow px4
         _ekf.set_air_density(airdata.rho);
 
 		_ekf.setBaroData(baroSample{airdata.timestamp_sample, airdata.baro_alt_meter});
-
-		// PX4_INFO("New airdata.baro_alt_meter: %f\n", static_cast<double>(airdata.baro_alt_meter));
-		last_airdata.rho=airdata.rho;
-		last_airdata.baro_alt_meter=airdata.baro_alt_meter;
 
 		_device_id_baro = airdata.baro_device_id;
     }
@@ -435,26 +475,6 @@ void PostEkf::UpdateGpsSample()
 
 		_gps_time_usec = gps_msg.time_usec;
 		_gps_alttitude_ellipsoid = vehicle_gps_position.alt_ellipsoid;
-
-		// save to last
-		last_vehicle_gps_position.timestamp = vehicle_gps_position.timestamp;
-		last_vehicle_gps_position.lat = vehicle_gps_position.lat;
-		last_vehicle_gps_position.lon = vehicle_gps_position.lon;
-		last_vehicle_gps_position.alt = vehicle_gps_position.alt;
-		last_vehicle_gps_position.heading = vehicle_gps_position.heading;
-		last_vehicle_gps_position.heading_offset = vehicle_gps_position.heading_offset;
-		last_vehicle_gps_position.fix_type = vehicle_gps_position.fix_type;
-		last_vehicle_gps_position.eph = vehicle_gps_position.eph;
-		last_vehicle_gps_position.epv = vehicle_gps_position.epv;
-		last_vehicle_gps_position.s_variance_m_s = vehicle_gps_position.s_variance_m_s;
-		last_vehicle_gps_position.vel_m_s = vehicle_gps_position.vel_m_s;
-		last_vehicle_gps_position.vel_n_m_s = vehicle_gps_position.vel_n_m_s;
-		last_vehicle_gps_position.vel_e_m_s = vehicle_gps_position.vel_e_m_s;
-		last_vehicle_gps_position.vel_d_m_s = vehicle_gps_position.vel_d_m_s;
-		last_vehicle_gps_position.vel_ned_valid = vehicle_gps_position.vel_ned_valid;
-		last_vehicle_gps_position.satellites_used = vehicle_gps_position.satellites_used;
-		last_vehicle_gps_position.hdop = vehicle_gps_position.hdop;
-		last_vehicle_gps_position.vdop = vehicle_gps_position.vdop;
     }
 }
 void PostEkf::UpdateMagSample()
@@ -492,14 +512,14 @@ void PostEkf::UpdateMagSample()
 		// check if magnetometer has changed
 		if (magnetometer.device_id != _device_id_mag) {
 			if (_device_id_mag != 0) {
-				printf("mag sensor ID changed to %d \n", magnetometer.device_id);
+				ECL_INFO("- mag sensor ID changed %" PRIu32 " -> %" PRIu32, _device_id_mag, magnetometer.device_id);
 			}
 
 			reset = true;
 
 		} else if (magnetometer.calibration_count > _mag_calibration_count) {
 			// existing calibration has changed, reset saved mag bias
-			printf("%d - mag id \n", _device_id_mag);
+			ECL_INFO("- mag %" PRIu32 " calibration updated, resetting bias", _device_id_mag);
 			reset = true;
 		}
 
@@ -509,18 +529,10 @@ void PostEkf::UpdateMagSample()
 			_mag_calibration_count = magnetometer.calibration_count;
 
 			// reset magnetometer bias learning
-			_mag_cal_total_time_us = 0;
-			_mag_cal_last_us = 0;
-			_mag_cal_available = false;
+			_mag_cal = {};
 		}
 
-        _ekf.setMagData(magSample{magnetometer.timestamp, Vector3f{magnetometer.magnetometer_ga}});
-
-		last_magnetometer.magnetometer_ga[0]=magnetometer.magnetometer_ga[0];
-		last_magnetometer.magnetometer_ga[1]=magnetometer.magnetometer_ga[1];
-		last_magnetometer.magnetometer_ga[2]=magnetometer.magnetometer_ga[2];
-		last_magnetometer.device_id = magnetometer.device_id;
-		last_magnetometer.calibration_count = magnetometer.calibration_count;
+		_ekf.setMagData(magSample{magnetometer.timestamp_sample, Vector3f{magnetometer.magnetometer_ga}});
 
     }
 }
@@ -573,15 +585,15 @@ void PostEkf::PublishLocalPosition(const hrt_abstime &timestamp)
 
 	// TODO: better status reporting
 	lpos.xy_valid = _ekf.local_position_is_valid();
-	lpos.z_valid = true;
+	// lpos.z_valid = !_preflt_checker.hasVertFailed();
 	lpos.v_xy_valid = _ekf.local_position_is_valid();
-	lpos.v_z_valid = true;
+	// lpos.v_z_valid = !_preflt_checker.hasVertFailed();
 
 	// Position of local NED origin in GPS / WGS84 frame
 	if (_ekf.global_origin_valid()) {
-		lpos.ref_timestamp = _ekf.global_origin().timestamp;
-		lpos.ref_lat = math::degrees(_ekf.global_origin().lat_rad); // Reference point latitude in degrees
-		lpos.ref_lon = math::degrees(_ekf.global_origin().lon_rad); // Reference point longitude in degrees
+		lpos.ref_timestamp = _ekf.global_origin().getProjectionReferenceTimestamp();
+		lpos.ref_lat = _ekf.global_origin().getProjectionReferenceLat(); // Reference point latitude in degrees
+		lpos.ref_lon = _ekf.global_origin().getProjectionReferenceLon(); // Reference point longitude in degrees
 		lpos.ref_alt = _ekf.getEkfGlobalOriginAltitude();           // Reference point in MSL altitude meters
 		lpos.xy_global = true;
 		lpos.z_global = true;
@@ -600,26 +612,13 @@ void PostEkf::PublishLocalPosition(const hrt_abstime &timestamp)
 
 	lpos.heading = Eulerf(_ekf.getQuaternion()).psi();
 	lpos.delta_heading = Eulerf(delta_q_reset).psi();
+	lpos.heading_good_for_control = _ekf.isYawFinalAlignComplete();
 
 	// Distance to bottom surface (ground) in meters
 	// constrain the distance to ground to _rng_gnd_clearance
-	lpos.dist_bottom = math::max(_ekf.getTerrainVertPos() - lpos.z, _param_ekf3_min_rng );
+	lpos.dist_bottom = math::max(_ekf.getTerrainVertPos() - lpos.z, _param_ekf2_min_rng);
 	lpos.dist_bottom_valid = _ekf.isTerrainEstimateValid();
 	lpos.dist_bottom_sensor_bitfield = _ekf.getTerrainEstimateSensorBitfield();
-
-	if (!_had_valid_terrain) {
-		_had_valid_terrain = lpos.dist_bottom_valid;
-	}
-
-	// only consider ground effect if compensation is configured and the vehicle is armed (props spinning)
-	if ((_param_ekf3_gnd_eff_dz  > 0.0f) && _armed && lpos.dist_bottom_valid) {
-		// set ground effect flag if vehicle is closer than a specified distance to the ground
-		_ekf.set_gnd_effect_flag(lpos.dist_bottom < _param_ekf3_gnd_max_hgt );
-
-		// if we have no valid terrain estimate and never had one then use ground effect flag from land detector
-		// _had_valid_terrain is used to make sure that we don't fall back to using this option
-		// if we temporarily lose terrain data due to the distance sensor getting out of range
-	}
 
 	_ekf.get_ekf_lpos_accuracy(&lpos.eph, &lpos.epv);
 	_ekf.get_ekf_vel_accuracy(&lpos.evh, &lpos.evv);
@@ -649,9 +648,8 @@ void PostEkf::PublishLocalPosition(const hrt_abstime &timestamp)
 	if (!PX4_ISFINITE(lpos.hagl_max)) {
 		lpos.hagl_max = INFINITY;
 	}
-
 	// publish vehicle local position data
-	lpos.timestamp = timestamp  ;
+	lpos.timestamp = timestamp;
 	// _local_position_pub.publish(lpos);
     // Position of body origin in local NED frame
     // Local Position NED
@@ -664,50 +662,125 @@ void PostEkf::PublishLocalPosition(const hrt_abstime &timestamp)
 
 
 }
+void PostEkf::UpdateAccelCalibration(const hrt_abstime &timestamp)
+{
+	if (_param_ekf2_aid_mask & MASK_INHIBIT_ACC_BIAS) {
+		_accel_cal.cal_available = false;
+		return;
+	}
+
+	static constexpr float max_var_allowed = 1e-3f;
+	static constexpr float max_var_ratio = 1e2f;
+
+	const Vector3f bias_variance{_ekf.getAccelBiasVariance()};
+
+	// Check if conditions are OK for learning of accelerometer bias values
+	// the EKF is operating in the correct mode and there are no filter faults
+	if ((_ekf.fault_status().value == 0)
+	    && !_ekf.accel_bias_inhibited()
+	    //&& !_preflt_checker.hasHorizFailed() && !_preflt_checker.hasVertFailed()
+	    && (_ekf.control_status_flags().baro_hgt || _ekf.control_status_flags().rng_hgt
+		|| _ekf.control_status_flags().gps_hgt || _ekf.control_status_flags().ev_hgt)
+	    && !_ekf.warning_event_flags().height_sensor_timeout && !_ekf.warning_event_flags().invalid_accel_bias_cov_reset
+	    && !_ekf.innov_check_fail_status_flags().reject_ver_pos && !_ekf.innov_check_fail_status_flags().reject_ver_vel
+	    && (bias_variance.max() < max_var_allowed) && (bias_variance.max() < max_var_ratio * bias_variance.min())
+	   ) {
+
+		if (_accel_cal.last_us != 0) {
+			_accel_cal.total_time_us += timestamp - _accel_cal.last_us;
+
+			// consider bias estimates stable when we have accumulated sufficient time
+			if (_accel_cal.total_time_us > 30_s) {
+				_accel_cal.cal_available = true;
+			}
+		}
+
+		_accel_cal.last_us = timestamp;
+
+	} else {
+		_accel_cal = {};
+	}
+}
+
+void PostEkf::UpdateGyroCalibration(const hrt_abstime &timestamp)
+{
+	static constexpr float max_var_allowed = 1e-3f;
+	static constexpr float max_var_ratio = 1e2f;
+
+	const Vector3f bias_variance{_ekf.getGyroBiasVariance()};
+
+	// Check if conditions are OK for learning of gyro bias values
+	// the EKF is operating in the correct mode and there are no filter faults
+	if ((_ekf.fault_status().value == 0)
+	    && (bias_variance.max() < max_var_allowed) && (bias_variance.max() < max_var_ratio * bias_variance.min())
+	   ) {
+
+		if (_gyro_cal.last_us != 0) {
+			_gyro_cal.total_time_us += timestamp - _gyro_cal.last_us;
+
+			// consider bias estimates stable when we have accumulated sufficient time
+			if (_gyro_cal.total_time_us > 30_s) {
+				_gyro_cal.cal_available = true;
+			}
+		}
+
+		_gyro_cal.last_us = timestamp;
+
+	} else {
+		// conditions are NOT OK for learning bias, reset
+		_gyro_cal = {};
+	}
+}
+
 void PostEkf::UpdateMagCalibration(const hrt_abstime &timestamp)
 {
     // Check if conditions are OK for learning of magnetometer bias values
 	// the EKF is operating in the correct mode and there are no filter faults
-	if (_ekf.control_status_flags().in_air && _ekf.control_status_flags().mag_3D && (_ekf.fault_status().value == 0)) {
 
-		if (_mag_cal_last_us != 0) {
-			_mag_cal_total_time_us += timestamp - _mag_cal_last_us;
+	static constexpr float max_var_allowed = 1e-3f;
+	static constexpr float max_var_ratio = 1e2f;
 
-			// Start checking mag bias estimates when we have accumulated sufficient calibration time
-			if (_mag_cal_total_time_us > 30_s) {
-				_mag_cal_last_bias = _ekf.getMagBias();
-				_mag_cal_last_bias_variance = _ekf.getMagBiasVariance();
-				_mag_cal_available = true;
+	const Vector3f bias_variance{_ekf.getMagBiasVariance()};
+
+	bool valid = _ekf.control_status_flags().in_air
+		     && (_ekf.fault_status().value == 0)
+		     && (bias_variance.max() < max_var_allowed)
+		     && (bias_variance.max() < max_var_ratio * bias_variance.min());
+
+	if (valid && _ekf.control_status_flags().mag_3D) {
+
+		if (_mag_cal.last_us != 0) {
+			_mag_cal.total_time_us += timestamp - _mag_cal.last_us;
+
+			// consider bias estimates stable when we have accumulated sufficient time
+			if (_mag_cal.total_time_us > 30_s) {
+				_mag_cal.cal_available = true;
 			}
 		}
 
-		_mag_cal_last_us = timestamp;
+		_mag_cal.last_us = timestamp;
 
 	} else {
 		// conditions are NOT OK for learning magnetometer bias, reset timestamp
 		// but keep the accumulated calibration time
-		_mag_cal_last_us = 0;
+		_mag_cal.last_us = 0;
 
-		if (_ekf.fault_status().value != 0) {
+		if (!valid) {
 			// if a filter fault has occurred, assume previous learning was invalid and do not
 			// count it towards total learning time.
-			_mag_cal_total_time_us = 0;
+			_mag_cal.total_time_us = 0;
 		}
 	}
+    if (!_mag_decl_saved) {
+		float declination_deg;
 
-	if (!_armed) {
-		// update stored declination value
-		if (!_mag_decl_saved) {
-			float declination_deg;
+		if (_ekf.get_mag_decl_deg(&declination_deg)) {
 
-			if (_ekf.get_mag_decl_deg(&declination_deg)) {
-				_param_ekf3_mag_decl=(declination_deg);
-				_mag_decl_saved = true;
-
-				// if (!_multi_mode) {
-				// 	_param_ekf3_mag_decl.commit_no_notification();
-				// }
+			if (PX4_ISFINITE(declination_deg) && (fabsf(declination_deg - _param_ekf2_mag_decl) > 0.1f)) {
+				_param_ekf2_mag_decl=(declination_deg);
 			}
+
+			_mag_decl_saved = true;
 		}
 	}
 }

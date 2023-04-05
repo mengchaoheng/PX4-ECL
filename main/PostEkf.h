@@ -38,36 +38,43 @@ struct vehicle_status_s {
     uint64_t timestamp;
 	uint64_t nav_state_timestamp;
 	uint64_t failsafe_timestamp;
+
+	uint64_t onboard_control_sensors_present;
+	uint64_t onboard_control_sensors_enabled;
+	uint64_t onboard_control_sensors_health;
+
 	uint64_t armed_time;
 	uint64_t takeoff_time;
-	uint32_t onboard_control_sensors_present;
-	uint32_t onboard_control_sensors_enabled;
-	uint32_t onboard_control_sensors_health;
 	uint8_t nav_state;
+
 	uint8_t arming_state;
 	uint8_t hil_state;
 	bool failsafe;
+
 	uint8_t system_type;
 	uint8_t system_id;
 	uint8_t component_id;
+
 	uint8_t vehicle_type;
 	bool is_vtol;
 	bool is_vtol_tailsitter;
+
 	bool vtol_fw_permanent_stab;
 	bool in_transition_mode;
 	bool in_transition_to_fw;
+
 	bool rc_signal_lost;
-	uint8_t rc_input_mode;
 	bool data_link_lost;
 	uint8_t data_link_lost_counter;
+	
 	bool high_latency_data_link_lost;
 	bool engine_failure;
 	bool mission_failure;
 	bool geofence_violated;
+
 	uint8_t failure_detector_status;
 	uint8_t latest_arming_reason;
 	uint8_t latest_disarming_reason;
-	uint8_t _padding0[4]; // required for logger
     static constexpr uint8_t ARMING_STATE_INIT = 0;
 	static constexpr uint8_t ARMING_STATE_STANDBY = 1;
 	static constexpr uint8_t ARMING_STATE_ARMED = 2;
@@ -81,6 +88,9 @@ struct vehicle_status_s {
 	static constexpr uint8_t FAILURE_ALT = 4;
 	static constexpr uint8_t FAILURE_EXT = 8;
 	static constexpr uint8_t FAILURE_ARM_ESC = 16;
+	static constexpr uint8_t FAILURE_HIGH_WIND = 32;
+	static constexpr uint8_t FAILURE_BATTERY = 64;
+	static constexpr uint8_t FAILURE_IMBALANCED_PROP = 128;
 	static constexpr uint8_t HIL_STATE_OFF = 0;
 	static constexpr uint8_t HIL_STATE_ON = 1;
 	static constexpr uint8_t NAVIGATION_STATE_MANUAL = 0;
@@ -90,9 +100,9 @@ struct vehicle_status_s {
 	static constexpr uint8_t NAVIGATION_STATE_AUTO_LOITER = 4;
 	static constexpr uint8_t NAVIGATION_STATE_AUTO_RTL = 5;
 	static constexpr uint8_t NAVIGATION_STATE_AUTO_LANDENGFAIL = 8;
-	static constexpr uint8_t NAVIGATION_STATE_AUTO_LANDGPSFAIL = 9;
+	static constexpr uint8_t NAVIGATION_STATE_UNUSED = 9;
 	static constexpr uint8_t NAVIGATION_STATE_ACRO = 10;
-	static constexpr uint8_t NAVIGATION_STATE_UNUSED = 11;
+	static constexpr uint8_t NAVIGATION_STATE_UNUSED1 = 11;
 	static constexpr uint8_t NAVIGATION_STATE_DESCEND = 12;
 	static constexpr uint8_t NAVIGATION_STATE_TERMINATION = 13;
 	static constexpr uint8_t NAVIGATION_STATE_OFFBOARD = 14;
@@ -103,10 +113,8 @@ struct vehicle_status_s {
 	static constexpr uint8_t NAVIGATION_STATE_AUTO_FOLLOW_TARGET = 19;
 	static constexpr uint8_t NAVIGATION_STATE_AUTO_PRECLAND = 20;
 	static constexpr uint8_t NAVIGATION_STATE_ORBIT = 21;
-	static constexpr uint8_t NAVIGATION_STATE_MAX = 22;
-	static constexpr uint8_t RC_IN_MODE_DEFAULT = 0;
-	static constexpr uint8_t RC_IN_MODE_OFF = 1;
-	static constexpr uint8_t RC_IN_MODE_GENERATED = 2;
+	static constexpr uint8_t NAVIGATION_STATE_AUTO_VTOL_TAKEOFF = 22;
+	static constexpr uint8_t NAVIGATION_STATE_MAX = 23;
 	static constexpr uint8_t VEHICLE_TYPE_UNKNOWN = 0;
 	static constexpr uint8_t VEHICLE_TYPE_ROTARY_WING = 1;
 	static constexpr uint8_t VEHICLE_TYPE_FIXED_WING = 2;
@@ -128,11 +136,11 @@ struct vehicle_status_s {
 	static constexpr uint8_t ARM_DISARM_REASON_UNIT_TEST = 13;
 };
 
-#define IMU_FIELD_COUNT 11
+#define IMU_FIELD_COUNT 13
 #define MAG_FIELD_COUNT 7
-#define BARO_FIELD_COUNT 7
+#define BARO_FIELD_COUNT 8
 #define GPS_FIELD_COUNT 27
-#define STATUS_FIELD_COUNT 32
+#define STATUS_FIELD_COUNT 31
 
 #define FIELD_COUNT 23
 
@@ -147,18 +155,22 @@ struct vehicle_status_s {
 #define   ACCELEROMETER_M_S2_Z 8
 #define   ACCELEROMETER_INTEGRAL_DT 9
 #define   ACC_CLIP  10
+#define   ACC_CALI_COUNT  11
+#define   GYRO_CALI_COUNT  12
 
+#define   MAG_DEVICE_ID 2 
 #define   MAGNETOMETER_GA_X 3
 #define   MAGNETOMETER_GA_Y 4
 #define   MAGNETOMETER_GA_Z 5
-#define   CALIBRATION_COUNT 6
+#define   MAG_CALI_COUNT 6
 
 #define   TIMESTAMP_SAMPLE 1 
-#define   DEVICE_ID 2 
+#define   BARO_DEVICE_ID 2 
 #define   BARO_ALT_METER 3
 #define   BARO_TEMP_CELCIUS 4
 #define   BARO_PRESSURE_PA 5
 #define   RHO 6
+#define   BARO_CALI_COUNT 6
 
 #define   TIME_UTC_USEC 1
 #define   LAT 2
@@ -235,29 +247,25 @@ struct vehicle_local_position_s {
 	uint8_t vxy_reset_counter;
 	uint8_t vz_reset_counter;
 	uint8_t heading_reset_counter;
+	bool heading_good_for_control;
 	bool xy_global;
 	bool z_global;
 	bool dist_bottom_valid;
 	uint8_t dist_bottom_sensor_bitfield;
-	uint8_t _padding0[3]; // required for logger
     static constexpr uint8_t DIST_BOTTOM_SENSOR_NONE = 0;
 	static constexpr uint8_t DIST_BOTTOM_SENSOR_RANGE = 1;
 	static constexpr uint8_t DIST_BOTTOM_SENSOR_FLOW = 2;
 };
 struct sensor_combined_s {
-    // // Sensor readings in SI-unit form.
-    // // These fields are scaled and offset-compensated where possible and do not
-    // // change with board revisions and sensor updates.
-    uint64_t timestamp;				// time since system start (microseconds)
-    // // gyro timstamp is equal to the timestamp of the message
-    float gyro_rad[3];			// average angular rate measured in the FRD body frame XYZ-axis in rad/s over the last gyro sampling period
-    uint32_t gyro_integral_dt;		// gyro measurement sampling period in microseconds
-
-    int32_t accelerometer_timestamp_relative;	// timestamp + accelerometer_timestamp_relative = Accelerometer timestamp
-    float accelerometer_m_s2[3];		// average value acceleration measured in the FRD body frame XYZ-axis in m/s^2 over the last accelerometer sampling period
-    uint32_t accelerometer_integral_dt;	// accelerometer measurement sampling period in microseconds
-    uint8_t accelerometer_clipping;  // bitfield indicating if there was any accelerometer clipping (per axis) during the sampling period
-	uint8_t _padding0[3]; // required for logger
+    uint64_t timestamp;
+	float gyro_rad[3];
+	uint32_t gyro_integral_dt;
+	int32_t accelerometer_timestamp_relative;
+	float accelerometer_m_s2[3];
+	uint32_t accelerometer_integral_dt;
+	uint8_t accelerometer_clipping;
+	uint8_t accel_calibration_count;
+	uint8_t gyro_calibration_count;
 
     static constexpr int32_t RELATIVE_TIMESTAMP_INVALID = 2147483647;
 	static constexpr uint8_t CLIPPING_X = 1;
@@ -266,64 +274,52 @@ struct sensor_combined_s {
 };
 
 struct vehicle_gps_position_s {
-	// // GPS position in WGS84 coordinates.
-    // // the auto-generated field 'timestamp' is for the position & velocity (microseconds)
-    uint64_t timestamp;				// time since system start (microseconds)
-    uint64_t time_utc_usec;		// Timestamp (microseconds, UTC), this is the timestamp which comes from the gps module. It might be unavailable right after cold start, indicated by a value of 0 
-    int32_t lat;			// Latitude in 1E-7 degrees
-    int32_t lon;			// Longitude in 1E-7 degrees 
-    int32_t alt;			// Altitude in 1E-3 meters above MSL, (millimetres)
-    int32_t alt_ellipsoid; 		// Altitude in 1E-3 meters bove Ellipsoid, (millimetres)
-
-    float s_variance_m_s;		// GPS speed accuracy estimate, (metres/sec)
-    float c_variance_rad;		// GPS course accuracy estimate, (radians) 
-     
-
-    float eph;			// GPS horizontal position accuracy (metres)
-    float epv;			// GPS vertical position accuracy (metres)
-    float hdop;			// Horizontal dilution of precision
-    float vdop;			// Vertical dilution of precision
-
-    int32_t noise_per_ms;		// GPS noise per millisecond
-    int32_t jamming_indicator;		// indicates jamming is occurring
-
-    float vel_m_s;			// GPS ground speed, (metres/sec) 
-    float vel_n_m_s;		// GPS North velocity, (metres/sec) 
-    float vel_e_m_s;		// GPS East velocity, (metres/sec)
-    float vel_d_m_s;		// GPS Down velocity, (metres/sec) 
-    float cog_rad;			// Course over ground (NOT heading, but direction of movement), -PI..PI, (radians) 
-    
-    int32_t timestamp_time_relative;	// timestamp + timestamp_time_relative = Time of the UTC timestamp since system start, (microseconds)
-    float heading; //heading angle of XYZ body frame rel to NED. Set to NaN if not available and updated (used for dual antenna GPS), (rad, [-PI, PI])
-	float heading_offset; // heading offset of dual antenna array in body frame. Set to NaN if not applicable. (rad, [-PI, PI])
-    uint8_t fix_type; // 0-1: no fix, 2: 2D fix, 3: 3D fix, 4: RTCM code differential, 5: Real-Time Kinematic, float, 6: Real-Time Kinematic, fixed, 8: Extrapolated. Some applications will not use the value of this field unless it is at least two, so always correctly fill in the fix.  
+	uint64_t timestamp;
+	uint64_t time_utc_usec;
+	int32_t lat;
+	int32_t lon;
+	int32_t alt;
+	int32_t alt_ellipsoid;
+	float s_variance_m_s;
+	float c_variance_rad;
+	float eph;
+	float epv;
+	float hdop;
+	float vdop;
+	int32_t noise_per_ms;
+	int32_t jamming_indicator;
+	float vel_m_s;
+	float vel_n_m_s;
+	float vel_e_m_s;
+	float vel_d_m_s;
+	float cog_rad;
+	int32_t timestamp_time_relative;
+	float heading;
+	float heading_offset;
+	uint8_t fix_type;
 	uint8_t jamming_state;
-    bool vel_ned_valid;		// True if NED velocity is valid 
-
-    uint8_t satellites_used;		// Number of satellites used 
-    uint8_t selected;
-	uint8_t _padding0[3]; // required for logger
+	bool vel_ned_valid;
+	uint8_t satellites_used;
+	uint8_t selected;
 };
 
 struct vehicle_magnetometer_s {
-	uint64_t timestamp;            // time since system start (microseconds)
-    uint64_t timestamp_sample;     // the timestamp of the raw data (microseconds)
-    uint32_t device_id;            // unique device ID for the selected magnetometer
-    float magnetometer_ga[3];  // Magnetic field in the FRD body frame XYZ-axis in Gauss
-    uint8_t calibration_count;     // Calibration changed counter. Monotonically increases whenever calibration changes.
-    uint8_t _padding0[7]; // required for logger
+	uint64_t timestamp;
+	uint64_t timestamp_sample;
+	uint32_t device_id;
+	float magnetometer_ga[3];
+	uint8_t calibration_count;
 };
 
 struct vehicle_air_data_s {
-    uint64_t timestamp;            // time since system start (microseconds)
-    uint64_t timestamp_sample;     // the timestamp of the raw data (microseconds)
-    uint32_t baro_device_id;
-	float baro_alt_meter;			// Altitude above MSL calculated from temperature compensated baro sensor data using an ISA corrected for sea level pressure SENS_BARO_QNH.
-    float baro_temp_celcius;		// Temperature in degrees celsius
-    float baro_pressure_pa;		// Absolute pressure in pascals
-
-    float rho;						// air density
-    uint8_t _padding0[4]; // required for logger
+    uint64_t timestamp;
+	uint64_t timestamp_sample;
+	uint32_t baro_device_id;
+	float baro_alt_meter;
+	float baro_temp_celcius;
+	float baro_pressure_pa;
+	float rho;
+	uint8_t calibration_count;
 };
 
 
@@ -387,11 +383,26 @@ private:
 
 
     // follow px4
+	struct InFlightCalibration {
+		hrt_abstime last_us{0};         ///< last time the EKF was operating a mode that estimates accelerometer biases (uSec)
+		hrt_abstime total_time_us{0};   ///< accumulated calibration time since the last save
+		bool cal_available{false};      ///< true when an unsaved valid calibration for the XYZ accelerometer bias is available
+	};
+
+	InFlightCalibration _accel_cal{};
+	InFlightCalibration _gyro_cal{};
+	InFlightCalibration _mag_cal{};
+
     // time slip monitoring
 	uint64_t _integrated_time_us = 0;	///< integral of gyro delta time from start (uSec)
 	uint64_t _start_time_us = 0;		///< system time at EKF start (uSec)
 	int64_t _last_time_slip_us = 0;		///< Last time slip (uSec)
-    uint8_t _mag_calibration_count{0};
+
+	uint8_t _accel_calibration_count{0};
+	uint8_t _baro_calibration_count{0};
+	uint8_t _gyro_calibration_count{0};
+	uint8_t _mag_calibration_count{0};
+
     // uint8_t _imu_calibration_count{0};
 	uint32_t _device_id_accel{0};
 	uint32_t _device_id_baro{0};
@@ -414,11 +425,12 @@ private:
 
     bool _had_valid_terrain{false};			///< true if at any time there was a valid terrain estimate
 
-    float _param_ekf3_fuse_beta{0};
-    float _param_ekf3_min_rng{0.1f};
-    float _param_ekf3_gnd_eff_dz{4.0f};
-    float _param_ekf3_gnd_max_hgt{0.5f};
-    float _param_ekf3_mag_decl{0.f};
+    float _param_ekf2_fuse_beta{0};
+    float _param_ekf2_min_rng{0.1f};
+    float _param_ekf2_gnd_eff_dz{4.0f};
+    float _param_ekf2_gnd_max_hgt{0.5f};
+    float _param_ekf2_mag_decl{0.f};
+	int32_t _param_ekf2_aid_mask{1};
 
     bool _armed{false};
 
@@ -444,6 +456,8 @@ private:
     void UpdateBaroSample();
 	void UpdateGpsSample();
 	void UpdateMagSample();
+	void UpdateAccelCalibration(const hrt_abstime &timestamp);
+	void UpdateGyroCalibration(const hrt_abstime &timestamp);
     void UpdateMagCalibration(const hrt_abstime &timestamp);
 
 
