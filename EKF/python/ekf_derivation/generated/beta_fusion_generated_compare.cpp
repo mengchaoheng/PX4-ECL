@@ -1,7 +1,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <cstdlib>
-#include "../../../../../matrix/matrix/math.hpp"
+#include "matrix/matrix/math.hpp"
 #include "util.h"
 
 typedef matrix::Vector<float, 24> Vector24f;
@@ -138,7 +138,7 @@ int main()
         const float HK52 = HK16/_beta_innov_var;
 
         // determine if we need the sideslip fusion to correct states other than wind
-        // bool update_wind_only = !_is_wind_dead_reckoning;
+        // bool update_wind_only = !_control_status.flags.wind_dead_reckoning;
         bool update_wind_only = false;
 
         // // Calculate predicted sideslip angle and innovation using small angle approximation

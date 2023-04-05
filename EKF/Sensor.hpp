@@ -39,7 +39,8 @@
  *
  */
 
-#pragma once
+#ifndef EKF_SENSOR_HPP
+#define EKF_SENSOR_HPP
 
 #include "common.h"
 
@@ -58,7 +59,7 @@ public:
 	 * this has to be called immediately after
 	 * setting new data
 	 */
-	virtual void runChecks(){};
+	virtual void runChecks() {};
 
 	/*
 	 * return true if the sensor is healthy
@@ -80,3 +81,4 @@ public:
 
 } // namespace sensor
 } // namespace estimator
+#endif // !EKF_SENSOR_HPP

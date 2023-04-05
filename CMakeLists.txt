@@ -131,18 +131,18 @@ if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
 	endif()
 
 	# fetch latest matrix from github
-	include(ExternalProject)
-	ExternalProject_Add(matrix
-			GIT_REPOSITORY "https://github.com/PX4/Matrix.git"
-			GIT_TAG f981cea2aebfc9cfd930dce73ba6d4d6681e99c1
-			UPDATE_COMMAND ""
-			PATCH_COMMAND ""
-			CONFIGURE_COMMAND ""
-			BUILD_COMMAND ""
-			INSTALL_COMMAND ""
-			)
-	add_dependencies(prebuild_targets matrix)
-	include_directories(${CMAKE_BINARY_DIR}/matrix-prefix/src/matrix)
+	# include(ExternalProject)
+	# ExternalProject_Add(matrix
+	# 		GIT_REPOSITORY "https://github.com/PX4/Matrix.git"
+	# 		GIT_TAG f981cea2aebfc9cfd930dce73ba6d4d6681e99c1
+	# 		UPDATE_COMMAND ""
+	# 		PATCH_COMMAND ""
+	# 		CONFIGURE_COMMAND ""
+	# 		BUILD_COMMAND ""
+	# 		INSTALL_COMMAND ""
+	# 		)
+	# add_dependencies(prebuild_targets matrix)
+	# include_directories(${CMAKE_BINARY_DIR}/matrix-prefix/src/matrix)
 
 endif()
 
@@ -174,7 +174,7 @@ add_subdirectory(airdata)
 add_subdirectory(EKF)
 add_subdirectory(geo)
 add_subdirectory(geo_lookup)
-add_subdirectory(main)
+# add_subdirectory(main)
 
 if(BUILD_TESTING AND CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
 	add_subdirectory(test)

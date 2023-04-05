@@ -33,7 +33,7 @@
 
 #include <gtest/gtest.h>
 #include <math.h>
-#include <mathlib/mathlib.h>
+#include "mathlib/mathlib.h"
 
 #include <geo_lookup/geo_mag_declination.h>
 

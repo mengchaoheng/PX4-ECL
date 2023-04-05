@@ -39,9 +39,10 @@
  * @author Siddharth Bharat Purohit <siddharthbharatpurohit@gmail.com>
  *
  */
-#pragma once
+#ifndef EKF_COMMON_H
+#define EKF_COMMON_H
 
-#include <matrix/math.hpp>
+#include "matrix/math.hpp"
 
 namespace estimator
 {
@@ -94,11 +95,11 @@ struct outputVert {
 
 struct imuSample {
 	uint64_t    time_us{0};		///< timestamp of the measurement (uSec)
-	Vector3f    delta_ang;		///< delta angle in body frame (integrated gyro measurements) (rad)
-	Vector3f    delta_vel;		///< delta velocity in body frame (integrated accelerometer measurements) (m/sec)
-	float       delta_ang_dt;	///< delta angle integration period (sec)
-	float       delta_vel_dt;	///< delta velocity integration period (sec)
-	bool        delta_vel_clipping[3]{}; ///< true (per axis) if this sample contained any accelerometer clipping
+	Vector3f    delta_ang{};		///< delta angle in body frame (integrated gyro measurements) (rad)
+	Vector3f    delta_vel{};		///< delta velocity in body frame (integrated accelerometer measurements) (m/sec)
+	float       delta_ang_dt{0.f};	///< delta angle integration period (sec)
+	float       delta_vel_dt{0.f};	///< delta velocity integration period (sec)
+	bool        delta_vel_clipping[3] {}; ///< true (per axis) if this sample contained any accelerometer clipping
 };
 
 struct gpsSample {
@@ -151,6 +152,7 @@ struct extVisionSample {
 	Matrix3f velCov;	///< XYZ velocity covariances ((m/sec)**2)
 	float angVar;		///< angular heading variance (rad**2)
 	velocity_frame_t vel_frame = velocity_frame_t::BODY_FRAME_FRD;
+	uint8_t reset_counter{0};
 };
 
 struct dragSample {
@@ -213,12 +215,16 @@ enum TerrainFusionMask : int32_t {
 #define GNDEFFECT_TIMEOUT	10E6	///< Maximum period of time that ground effect protection will be active after it was last turned on (uSec)
 
 struct parameters {
+
+	int32_t filter_update_interval_us{10000}; ///< filter update interval in microseconds
+
 	// measurement source control
 	int32_t fusion_mode{MASK_USE_GPS};		///< bitmasked integer that selects which aiding sources will be used
 	int32_t vdist_sensor_type{VDIST_SENSOR_BARO};	///< selects the primary source for height data
 	int32_t terrain_fusion_mode{TerrainFusionMask::TerrainFuseRangeFinder |
 				    TerrainFusionMask::TerrainFuseOpticalFlow}; ///< aiding source(s) selection bitmask for the terrain estimator
-	int32_t sensor_interval_min_ms{20};		///< minimum time of arrival difference between non IMU sensor updates. Sets the size of the observation buffers. (mSec)
+
+	int32_t sensor_interval_max_ms{10};		///< maximum time of arrival difference between non IMU sensor updates. Sets the size of the observation buffers. (mSec)
 
 	// measurement time delays
 	float mag_delay_ms{0.0f};		///< magnetometer measurement delay relative to the IMU (mSec)
@@ -256,6 +262,7 @@ struct parameters {
 	float gps_pos_noise{0.5f};		///< minimum allowed observation noise for gps position fusion (m)
 	float pos_noaid_noise{10.0f};		///< observation noise for non-aiding position fusion (m)
 	float baro_noise{2.0f};			///< observation noise for barometric height fusion (m)
+	float baro_drift_rate{0.005f}; ///< process noise for barometric height bias estimation (m/s)
 	float baro_innov_gate{5.0f};		///< barometric and GPS height innovation consistency gate size (STD)
 	float gps_pos_innov_gate{5.0f};		///< GPS horizontal position innovation consistency gate size (STD)
 	float gps_vel_innov_gate{5.0f};		///< GPS velocity innovation consistency gate size (STD)
@@ -273,6 +280,9 @@ struct parameters {
 	float mag_acc_gate{0.5f};		///< when in auto select mode, heading fusion will be used when manoeuvre accel is lower than this (m/sec**2)
 	float mag_yaw_rate_gate{0.25f};		///< yaw rate threshold used by mode select logic (rad/sec)
 	const float quat_max_variance{0.0001f};	///< zero innovation yaw measurements will not be fused when the sum of quaternion variance is less than this
+
+	// GNSS heading fusion
+	float gps_heading_noise{0.1f};		///< measurement noise standard deviation used for GNSS heading fusion (rad)
 
 	// airspeed fusion
 	float tas_innov_gate{5.0f};		///< True Airspeed innovation consistency gate size (STD)
@@ -297,10 +307,11 @@ struct parameters {
 	float range_aid_innov_gate{1.0f}; 	///< gate size used for innovation consistency checks for range aid fusion
 	float range_valid_quality_s{1.0f};	///< minimum duration during which the reported range finder signal quality needs to be non-zero in order to be declared valid (s)
 	float range_cos_max_tilt{0.7071f};	///< cosine of the maximum tilt angle from the vertical that permits use of range finder and flow data
+	float range_kin_consistency_gate{1.0f}; ///< gate size used by the range finder kinematic consistency check
 
 	// vision position fusion
-    float ev_vel_innov_gate{3.0f};		///< vision velocity fusion innovation consistency gate size (STD)
-    float ev_pos_innov_gate{5.0f};		///< vision position fusion innovation consistency gate size (STD)
+	float ev_vel_innov_gate{3.0f};		///< vision velocity fusion innovation consistency gate size (STD)
+	float ev_pos_innov_gate{5.0f};		///< vision position fusion innovation consistency gate size (STD)
 
 	// optical flow fusion
 	float flow_noise{0.15f};		///< observation noise for optical flow LOS rate measurements (rad/sec)
@@ -357,15 +368,13 @@ struct parameters {
 	float mcoef{0.1f};			///< rotor momentum drag coefficient for the X and Y axes (1/s)
 
 	// control of accel error detection and mitigation (IMU clipping)
-	const float vert_innov_test_lim{3.0f};	///< Number of standard deviations allowed before the combined vertical velocity and position test is declared as failed
+	const float vert_innov_test_lim{3.0f};	///< Number of standard deviations of vertical vel/pos innovations allowed before triggering a vertical acceleration failure
+	const float vert_innov_test_min{1.0f};	///< Minimum number of standard deviations of vertical vel/pos innovations required to trigger a vertical acceleration failure
 	const int bad_acc_reset_delay_us{500000};	///< Continuous time that the vertical position and velocity innovation test must fail before the states are reset (uSec)
 
 	// auxiliary velocity fusion
 	const float auxvel_noise{0.5f};		///< minimum observation noise, uses reported noise if greater (m/s)
 	const float auxvel_gate{5.0f};		///< velocity fusion innovation consistency gate size (STD)
-
-	// control of on-ground movement check
-	float is_moving_scaler{1.0f};		///< gain scaler used to adjust the threshold for the on-ground movement detection. Larger values make the test less sensitive.
 
 	// compute synthetic magnetomter Z value if possible
 	int32_t synthesize_mag_z{0};
@@ -482,11 +491,16 @@ union filter_control_status_u {
 		uint32_t ev_vel      : 1; ///< 24 - true when local frame velocity data fusion from external vision measurements is intended
 		uint32_t synthetic_mag_z : 1; ///< 25 - true when we are using a synthesized measurement for the magnetometer Z component
 		uint32_t vehicle_at_rest : 1; ///< 26 - true when the vehicle is at rest
+		uint32_t gps_yaw_fault : 1; ///< 27 - true when the GNSS heading has been declared faulty and is no longer being used
+		uint32_t rng_fault : 1; ///< 28 - true when the range finder has been declared faulty and is no longer being used
+		uint32_t inertial_dead_reckoning : 1; ///< 29 - true if we are no longer fusing measurements that constrain horizontal velocity drift
+		uint32_t wind_dead_reckoning     : 1; ///< 30 - true if we are navigationg reliant on wind relative measurements
+		uint32_t rng_kin_consistent      : 1; ///< 31 - true when the range finder kinematic consistency check is passing
 	} flags;
 	uint32_t value;
 };
 
- // Mavlink bitmask containing state of estimator solution
+// Mavlink bitmask containing state of estimator solution
 union ekf_solution_status {
 	struct {
 		uint16_t attitude           : 1; ///< 0 - True if the attitude estimate is good
@@ -542,13 +556,15 @@ union warning_event_status_u {
 		bool gps_data_stopped_using_alternate	: 1; ///< 3 - true when the gps data has stopped for a significant time period but the filter is able to use other sources of data to maintain navigation
 		bool height_sensor_timeout		: 1; ///< 4 - true when the height sensor has not been used to correct the state estimates for a significant time period
 		bool stopping_navigation		: 1; ///< 5 - true when the filter has insufficient data to estimate velocity and position and is falling back to an attitude, height and height rate mode of operation
-		bool invalid_accel_bias_cov_reset	: 1; ///< 6 - true when the filter has detected bad acceerometer bias state esitmstes and has reset the corresponding covariance matrix elements
+		bool invalid_accel_bias_cov_reset	: 1; ///< 6 - true when the filter has detected bad acceerometer bias state estimates and has reset the corresponding covariance matrix elements
 		bool bad_yaw_using_gps_course		: 1; ///< 7 - true when the fiter has detected an invalid yaw esitmate and has reset the yaw angle to the GPS ground course
 		bool stopping_mag_use			: 1; ///< 8 - true when the filter has detected bad magnetometer data and is stopping further use of the magnetomer data
 		bool vision_data_stopped		: 1; ///< 9 - true when the vision system data has stopped for a significant time period
 		bool emergency_yaw_reset_mag_stopped	: 1; ///< 10 - true when the filter has detected bad magnetometer data, has reset the yaw to anothter source of data and has stopped further use of the magnetomer data
+		bool emergency_yaw_reset_gps_yaw_stopped: 1; ///< 11 - true when the filter has detected bad GNSS yaw data, has reset the yaw to anothter source of data and has stopped further use of the GNSS yaw data
 	} flags;
 	uint32_t value;
 };
 
 }
+#endif // !EKF_COMMON_H
