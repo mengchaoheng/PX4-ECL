@@ -40,7 +40,12 @@
  */
 #ifndef MATHLIB_H
 #define MATHLIB_H
-
+#include "matrix/math.hpp"
+#include <float.h>
+#include <semaphore.h>
+#include <time.h>
+#include <string.h>
+#include <errno.h>
 #ifdef ECL_STANDALONE
 
 #ifndef M_PI_F
@@ -68,6 +73,11 @@ static constexpr Type max(Type val1, Type val2)
 {
 	return (val1 > val2) ? val1 : val2;
 }
+template<typename _Tp>
+constexpr _Tp max(_Tp a, _Tp b, _Tp c)
+{
+	return max(max(a, b), c);
+}
 
 template <typename Type>
 static constexpr Type constrain(Type val, Type min, Type max)
@@ -88,6 +98,96 @@ static constexpr Type degrees(Type radians)
 }
 
 }  // namespace math
+
+static inline constexpr bool PX4_ISFINITE(float x) { return __builtin_isfinite(x); }
+static inline constexpr bool PX4_ISFINITE(double x) { return __builtin_isfinite(x); }
+
+inline bool isFinite(const float &value)
+{
+	return PX4_ISFINITE(value);
+}
+
+inline bool isFinite(const matrix::Vector3f &value)
+{
+	return PX4_ISFINITE(value(0)) && PX4_ISFINITE(value(1)) && PX4_ISFINITE(value(2));
+}
+template <typename T>
+class AlphaFilter
+{
+public:
+	AlphaFilter() = default;
+	explicit AlphaFilter(float alpha) : _alpha(alpha) {}
+
+	~AlphaFilter() = default;
+
+	/**
+	 * Set filter parameters for time abstraction
+	 *
+	 * Both parameters have to be provided in the same units.
+	 *
+	 * @param sample_interval interval between two samples
+	 * @param time_constant filter time constant determining convergence
+	 */
+	void setParameters(float sample_interval, float time_constant)
+	{
+		const float denominator = time_constant + sample_interval;
+
+		if (denominator > FLT_EPSILON) {
+			setAlpha(sample_interval / denominator);
+		}
+	}
+
+	bool setCutoffFreq(float sample_freq, float cutoff_freq)
+	{
+		if ((sample_freq <= 0.f) || (cutoff_freq <= 0.f) || (cutoff_freq >= sample_freq / 2.f)
+		    || !isFinite(sample_freq) || !isFinite(cutoff_freq)) {
+
+			// Invalid parameters
+			return false;
+		}
+
+		setParameters(1.f / sample_freq, 1.f / (2.f * M_PI_F * cutoff_freq));
+		_cutoff_freq = cutoff_freq;
+		return true;
+	}
+
+	/**
+	 * Set filter parameter alpha directly without time abstraction
+	 *
+	 * @param alpha [0,1] filter weight for the previous state. High value - long time constant.
+	 */
+	void setAlpha(float alpha) { _alpha = alpha; }
+
+	/**
+	 * Set filter state to an initial value
+	 *
+	 * @param sample new initial value
+	 */
+	void reset(const T &sample) { _filter_state = sample; }
+
+	/**
+	 * Add a new raw value to the filter
+	 *
+	 * @return retrieve the filtered result
+	 */
+	const T &update(const T &sample)
+	{
+		_filter_state = updateCalculation(sample);
+		return _filter_state;
+	}
+
+	const T &getState() const { return _filter_state; }
+	float getCutoffFreq() const { return _cutoff_freq; }
+
+protected:
+	T updateCalculation(const T &sample) { return (1.f - _alpha) * _filter_state + _alpha * sample; }
+
+	float _cutoff_freq{0.f};
+	float _alpha{0.f};
+	T _filter_state{};
+};
+
+
 #else
 
 #include <mathlib/mathlib.h>

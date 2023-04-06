@@ -41,34 +41,15 @@
 
 #include "ekf.h"
 
-#include <ecl.h>
-#include <mathlib/mathlib.h>
+#include "mathlib/mathlib.h"
 #include <cstdlib>
 
-
-void Ekf::resetVelocity()
-{
-	if (_control_status.flags.gps && isTimedOut(_last_gps_fail_us, (uint64_t)_min_gps_health_time_us)) {
-		// this reset is only called if we have new gps data at the fusion time horizon
-		resetVelocityToGps();
-
-	} else if (_control_status.flags.opt_flow) {
-		resetHorizontalVelocityToOpticalFlow();
-
-	} else if (_control_status.flags.ev_vel) {
-		resetVelocityToVision();
-
-	} else {
-		resetHorizontalVelocityToZero();
-	}
-}
-
-void Ekf::resetVelocityToGps()
+void Ekf::resetVelocityToGps(const gpsSample &gps_sample_delayed)
 {
 	_information_events.flags.reset_vel_to_gps = true;
 	ECL_INFO("reset velocity to GPS");
-	resetVelocityTo(_gps_sample_delayed.vel);
-	P.uncorrelateCovarianceSetVariance<3>(4, sq(_gps_sample_delayed.sacc));
+	resetVelocityTo(gps_sample_delayed.vel);
+	P.uncorrelateCovarianceSetVariance<3>(4, sq(gps_sample_delayed.sacc));
 }
 
 void Ekf::resetHorizontalVelocityToOpticalFlow()
@@ -138,6 +119,9 @@ void Ekf::resetHorizontalVelocityTo(const Vector2f &new_horz_vel)
 
 	_state_reset_status.velNE_change = delta_horz_vel;
 	_state_reset_status.velNE_counter++;
+
+	// Reset the timout timer
+	_time_last_hor_vel_fuse = _time_last_imu;
 }
 
 void Ekf::resetVerticalVelocityTo(float new_vert_vel)
@@ -155,51 +139,17 @@ void Ekf::resetVerticalVelocityTo(float new_vert_vel)
 
 	_state_reset_status.velD_change = delta_vert_vel;
 	_state_reset_status.velD_counter++;
+
+	// Reset the timout timer
+	_time_last_ver_vel_fuse = _time_last_imu;
 }
 
-void Ekf::resetHorizontalPosition()
-{
-	// let the next odometry update know that the previous value of states cannot be used to calculate the change in position
-	_hpos_prev_available = false;
-
-	if (_control_status.flags.gps) {
-		// this reset is only called if we have new gps data at the fusion time horizon
-		resetHorizontalPositionToGps();
-
-	} else if (_control_status.flags.ev_pos) {
-		// this reset is only called if we have new ev data at the fusion time horizon
-		resetHorizontalPositionToVision();
-
-	} else if (_control_status.flags.opt_flow) {
-		_information_events.flags.reset_pos_to_last_known = true;
-		ECL_INFO("reset position to last known position");
-
-		if (!_control_status.flags.in_air) {
-			// we are likely starting OF for the first time so reset the horizontal position
-			resetHorizontalPositionTo(Vector2f(0.f, 0.f));
-
-		} else {
-			resetHorizontalPositionTo(_last_known_posNE);
-		}
-
-		// estimate is relative to initial position in this mode, so we start with zero error.
-		P.uncorrelateCovarianceSetVariance<2>(7, 0.0f);
-
-	} else {
-		_information_events.flags.reset_pos_to_last_known = true;
-		ECL_INFO("reset position to last known position");
-		// Used when falling back to non-aiding mode of operation
-		resetHorizontalPositionTo(_last_known_posNE);
-		P.uncorrelateCovarianceSetVariance<2>(7, sq(_params.pos_noaid_noise));
-	}
-}
-
-void Ekf::resetHorizontalPositionToGps()
+void Ekf::resetHorizontalPositionToGps(const gpsSample &gps_sample_delayed)
 {
 	_information_events.flags.reset_pos_to_gps = true;
 	ECL_INFO("reset position to GPS");
-	resetHorizontalPositionTo(_gps_sample_delayed.pos);
-	P.uncorrelateCovarianceSetVariance<2>(7, sq(_gps_sample_delayed.hacc));
+	resetHorizontalPositionTo(gps_sample_delayed.pos);
+	P.uncorrelateCovarianceSetVariance<2>(7, sq(gps_sample_delayed.hacc));
 }
 
 void Ekf::resetHorizontalPositionToVision()
@@ -214,6 +164,35 @@ void Ekf::resetHorizontalPositionToVision()
 
 	resetHorizontalPositionTo(Vector2f(_ev_pos));
 	P.uncorrelateCovarianceSetVariance<2>(7, _ev_sample_delayed.posVar.slice<2, 1>(0, 0));
+
+	// let the next odometry update know that the previous value of states cannot be used to calculate the change in position
+	_hpos_prev_available = false;
+}
+
+void Ekf::resetHorizontalPositionToOpticalFlow()
+{
+	_information_events.flags.reset_pos_to_last_known = true;
+	ECL_INFO("reset position to last known position");
+
+	if (!_control_status.flags.in_air) {
+		// we are likely starting OF for the first time so reset the horizontal position
+		resetHorizontalPositionTo(Vector2f(0.f, 0.f));
+
+	} else {
+		resetHorizontalPositionTo(_last_known_posNE);
+	}
+
+	// estimate is relative to initial position in this mode, so we start with zero error.
+	P.uncorrelateCovarianceSetVariance<2>(7, 0.0f);
+}
+
+void Ekf::resetHorizontalPositionToLastKnown()
+{
+	_information_events.flags.reset_pos_to_last_known = true;
+	ECL_INFO("reset position to last known position");
+	// Used when falling back to non-aiding mode of operation
+	resetHorizontalPositionTo(_last_known_posNE);
+	P.uncorrelateCovarianceSetVariance<2>(7, sq(_params.pos_noaid_noise));
 }
 
 void Ekf::resetHorizontalPositionTo(const Vector2f &new_horz_pos)
@@ -229,9 +208,12 @@ void Ekf::resetHorizontalPositionTo(const Vector2f &new_horz_pos)
 
 	_state_reset_status.posNE_change = delta_horz_pos;
 	_state_reset_status.posNE_counter++;
+
+	// Reset the timout timer
+	_time_last_hor_pos_fuse = _time_last_imu;
 }
 
-void Ekf::resetVerticalPositionTo(const float &new_vert_pos)
+void Ekf::resetVerticalPositionTo(const float new_vert_pos)
 {
 	const float old_vert_pos = _state.pos(2);
 	_state.pos(2) = new_vert_pos;
@@ -252,99 +234,82 @@ void Ekf::resetVerticalPositionTo(const float &new_vert_pos)
 
 	// add the reset amount to the output observer vertical position state
 	_output_vert_new.vert_vel_integ = _state.pos(2);
+
+	// Reset the timout timer
+	_time_last_hgt_fuse = _time_last_imu;
 }
 
-// Reset height state using the last height measurement
-void Ekf::resetHeight()
+void Ekf::resetHeightToBaro()
 {
-	// Get the most recent GPS data
-	const gpsSample &gps_newest = _gps_buffer.get_newest();
+	resetVerticalPositionTo(-_baro_sample_delayed.hgt + _baro_hgt_offset);
 
-	// reset the vertical position
-	if (_control_status.flags.rng_hgt) {
+	// the state variance is the same as the observation
+	P.uncorrelateCovarianceSetVariance<1>(9, sq(_params.baro_noise));
+}
 
-		// a fallback from any other height source to rangefinder happened
-		if(!_control_status_prev.flags.rng_hgt) {
+void Ekf::resetHeightToGps()
+{
+	const float z_pos_before_reset = _state.pos(2);
+	resetVerticalPositionTo(-_gps_sample_delayed.hgt + _gps_alt_ref);
 
-			if (_control_status.flags.in_air && isTerrainEstimateValid()) {
-			    _hgt_sensor_offset = _terrain_vpos;
-			} else if (_control_status.flags.in_air) {
-				 _hgt_sensor_offset = _range_sensor.getDistBottom() + _state.pos(2);
-			} else {
-				_hgt_sensor_offset = _params.rng_gnd_clearance;
-			}
+	// the state variance is the same as the observation
+	P.uncorrelateCovarianceSetVariance<1>(9, getGpsHeightVariance());
 
-		}
+	// adjust the baro offset
+	_baro_hgt_offset += _state.pos(2) - z_pos_before_reset;
+}
 
-		// update the state and associated variance
-		resetVerticalPositionTo(_hgt_sensor_offset - _range_sensor.getDistBottom());
+void Ekf::resetHeightToRng()
+{
+	float dist_bottom;
 
-		// the state variance is the same as the observation
-		P.uncorrelateCovarianceSetVariance<1>(9, sq(_params.range_noise));
-
-		// reset the baro offset which is subtracted from the baro reading if we need to use it as a backup
-		const baroSample &baro_newest = _baro_buffer.get_newest();
-		_baro_hgt_offset = baro_newest.hgt + _state.pos(2);
-
-	} else if (_control_status.flags.baro_hgt) {
-		// initialize vertical position with newest baro measurement
-		const baroSample &baro_newest = _baro_buffer.get_newest();
-
-		if (!_baro_hgt_faulty) {
-			resetVerticalPositionTo(-baro_newest.hgt + _baro_hgt_offset);
-
-			// the state variance is the same as the observation
-			P.uncorrelateCovarianceSetVariance<1>(9, sq(_params.baro_noise));
-
-		} else {
-			// TODO: reset to last known baro based estimate
-		}
-
-	} else if (_control_status.flags.gps_hgt) {
-		// initialize vertical position and velocity with newest gps measurement
-		if (!_gps_hgt_intermittent) {
-			resetVerticalPositionTo(_hgt_sensor_offset - gps_newest.hgt + _gps_alt_ref);
-
-			// the state variance is the same as the observation
-			P.uncorrelateCovarianceSetVariance<1>(9, sq(gps_newest.vacc));
-
-			// reset the baro offset which is subtracted from the baro reading if we need to use it as a backup
-			const baroSample &baro_newest = _baro_buffer.get_newest();
-			_baro_hgt_offset = baro_newest.hgt + _state.pos(2);
-
-		} else {
-			// TODO: reset to last known gps based estimate
-		}
-
-	} else if (_control_status.flags.ev_hgt) {
-		// initialize vertical position with newest measurement
-		const extVisionSample &ev_newest = _ext_vision_buffer.get_newest();
-
-		// use the most recent data if it's time offset from the fusion time horizon is smaller
-		if (ev_newest.time_us >= _ev_sample_delayed.time_us) {
-			resetVerticalPositionTo(ev_newest.pos(2));
-
-		} else {
-			resetVerticalPositionTo(_ev_sample_delayed.pos(2));
-		}
-	}
-
-	// reset the vertical velocity state
-	if (_control_status.flags.gps && !_gps_hgt_intermittent) {
-		// If we are using GPS, then use it to reset the vertical velocity
-		resetVerticalVelocityTo(gps_newest.vel(2));
-
-		// the state variance is the same as the observation
-		P.uncorrelateCovarianceSetVariance<1>(6, sq(1.5f * gps_newest.sacc));
+	if (_control_status.flags.in_air) {
+		dist_bottom = _range_sensor.getDistBottom();
 
 	} else {
-		// we don't know what the vertical velocity is, so set it to zero
-		resetVerticalVelocityTo(0.0f);
-
-		// Set the variance to a value large enough to allow the state to converge quickly
-		// that does not destabilise the filter
-		P.uncorrelateCovarianceSetVariance<1>(6, 10.0f);
+		// use the parameter rng_gnd_clearance if on ground to avoid a noisy offset initialization (e.g. sonar)
+		dist_bottom = _params.rng_gnd_clearance;
 	}
+
+	// update the state and associated variance
+	const float z_pos_before_reset = _state.pos(2);
+	resetVerticalPositionTo(-dist_bottom + _hgt_sensor_offset);
+
+	// the state variance is the same as the observation
+	P.uncorrelateCovarianceSetVariance<1>(9, sq(_params.range_noise));
+
+	// adjust the baro offset
+	_baro_hgt_offset += _state.pos(2) - z_pos_before_reset;
+}
+
+void Ekf::resetHeightToEv()
+{
+	const float z_pos_before_reset = _state.pos(2);
+	resetVerticalPositionTo(_ev_sample_delayed.pos(2));
+
+	// the state variance is the same as the observation
+	P.uncorrelateCovarianceSetVariance<1>(9, fmaxf(_ev_sample_delayed.posVar(2), sq(0.01f)));
+
+	// adjust the baro offset
+	_baro_hgt_offset += _state.pos(2) - z_pos_before_reset;
+}
+
+void Ekf::resetVerticalVelocityToGps(const gpsSample &gps_sample_delayed)
+{
+	resetVerticalVelocityTo(gps_sample_delayed.vel(2));
+
+	// the state variance is the same as the observation
+	P.uncorrelateCovarianceSetVariance<1>(6, sq(1.5f * gps_sample_delayed.sacc));
+}
+
+void Ekf::resetVerticalVelocityToZero()
+{
+	// we don't know what the vertical velocity is, so set it to zero
+	resetVerticalVelocityTo(0.0f);
+
+	// Set the variance to a value large enough to allow the state to converge quickly
+	// that does not destabilise the filter
+	P.uncorrelateCovarianceSetVariance<1>(6, 10.0f);
 }
 
 // align output filter states to match EKF states at the fusion time horizon
@@ -373,7 +338,7 @@ void Ekf::alignOutputFilter()
 
 // Do a forced re-alignment of the yaw angle to align with the horizontal velocity vector from the GPS.
 // It is used to align the yaw angle after launch or takeoff for fixed wing vehicle only.
-bool Ekf::realignYawGPS()
+bool Ekf::realignYawGPS(const Vector3f &mag)
 {
 	const float gpsSpeed = sqrtf(sq(_gps_sample_delayed.vel(0)) + sq(_gps_sample_delayed.vel(1)));
 
@@ -383,7 +348,7 @@ bool Ekf::realignYawGPS()
 
 	if (!gps_yaw_alignment_possible) {
 		// attempt a normal alignment using the magnetometer
-		return resetMagHeading(_mag_lpf.getState());
+		return resetMagHeading();
 	}
 
 	// check for excessive horizontal GPS velocity innovations
@@ -403,7 +368,7 @@ bool Ekf::realignYawGPS()
 	const bool badMagYaw = (badYawErr && badVelInnov);
 
 	if (badMagYaw) {
-		_num_bad_flight_yaw_events ++;
+		_num_bad_flight_yaw_events++;
 	}
 
 	// correct yaw angle using GPS ground course if compass yaw bad or yaw is previously not aligned
@@ -425,7 +390,7 @@ bool Ekf::realignYawGPS()
 		if (!_control_status.flags.mag_aligned_in_flight) {
 			// This is our first flight alignment so we can assume that the recent change in velocity has occurred due to a
 			// forward direction takeoff or launch and therefore the inertial and GPS ground course discrepancy is due to yaw error
-			const float current_yaw = getEuler321Yaw(_state.quat_nominal);
+			const float current_yaw = getEulerYaw(_R_to_earth);
 			yaw_new = current_yaw + courseYawError;
 			_control_status.flags.mag_aligned_in_flight = true;
 
@@ -451,8 +416,7 @@ bool Ekf::realignYawGPS()
 
 		// Use the last magnetometer measurements to reset the field states
 		_state.mag_B.zero();
-		_R_to_earth = Dcmf(_state.quat_nominal);
-		_state.mag_I = _R_to_earth * _mag_sample_delayed.mag;
+		_state.mag_I = _R_to_earth * mag;
 
 		resetMagCov();
 
@@ -460,7 +424,10 @@ bool Ekf::realignYawGPS()
 		_flt_mag_align_start_time = _imu_sample_delayed.time_us;
 
 		// If heading was bad, then we also need to reset the velocity and position states
-		_velpos_reset_request = badMagYaw;
+		if (badMagYaw) {
+			resetVelocityToGps(_gps_sample_delayed);
+			resetHorizontalPositionToGps(_gps_sample_delayed);
+		}
 
 		return true;
 
@@ -468,7 +435,7 @@ bool Ekf::realignYawGPS()
 		// align mag states only
 
 		// calculate initial earth magnetic field states
-		_state.mag_I = _R_to_earth * _mag_sample_delayed.mag;
+		_state.mag_I = _R_to_earth * mag;
 
 		resetMagCov();
 
@@ -480,18 +447,28 @@ bool Ekf::realignYawGPS()
 }
 
 // Reset heading and magnetic field states
-bool Ekf::resetMagHeading(const Vector3f &mag_init, bool increase_yaw_var, bool update_buffer)
+bool Ekf::resetMagHeading(bool increase_yaw_var, bool update_buffer)
 {
 	// prevent a reset being performed more than once on the same frame
 	if (_imu_sample_delayed.time_us == _flt_mag_align_start_time) {
 		return true;
 	}
 
+	// low pass filtered mag required
+	if (_mag_counter == 0) {
+		return false;
+	}
+
+	const Vector3f mag_init = _mag_lpf.getState();
+
 	// calculate the observed yaw angle and yaw variance
 	float yaw_new;
 	float yaw_new_variance = 0.0f;
 
-	if (_params.mag_fusion_type <= MAG_FUSE_TYPE_3D) {
+	const bool heading_required_for_navigation = _control_status.flags.gps || _control_status.flags.ev_pos;
+
+	if ((_params.mag_fusion_type <= MAG_FUSE_TYPE_3D) || ((_params.mag_fusion_type == MAG_FUSE_TYPE_INDOOR) && heading_required_for_navigation)) {
+
 		// rotate the magnetometer measurements into earth frame using a zero yaw angle
 		const Dcmf R_to_earth = updateYawInRotMat(0.f, _R_to_earth);
 
@@ -528,7 +505,7 @@ bool Ekf::resetMagHeading(const Vector3f &mag_init, bool increase_yaw_var, bool 
 
 bool Ekf::resetYawToEv()
 {
-	const float yaw_new = getEuler312Yaw(_ev_sample_delayed.quat);
+	const float yaw_new = getEulerYaw(_ev_sample_delayed.quat);
 	const float yaw_new_variance = fmaxf(_ev_sample_delayed.angVar, sq(1.0e-2f));
 
 	resetQuatStateYaw(yaw_new, yaw_new_variance, true);
@@ -547,7 +524,7 @@ float Ekf::getMagDeclination()
 
 	} else if (_params.mag_declination_source & MASK_USE_GEO_DECL) {
 		// use parameter value until GPS is available, then use value returned by geo library
-		if (_NED_origin_initialised || ISFINITE(_mag_declination_gps)) {
+		if (_NED_origin_initialised || PX4_ISFINITE(_mag_declination_gps)) {
 			return _mag_declination_gps;
 
 		} else {
@@ -700,13 +677,13 @@ matrix::Vector<float, 24> Ekf::getStateAtFusionHorizonAsVector() const
 bool Ekf::getEkfGlobalOrigin(uint64_t &origin_time, double &latitude, double &longitude, float &origin_alt) const
 {
 	origin_time = _last_gps_origin_time_us;
-	latitude    = math::degrees(_pos_ref.lat_rad);
-	longitude   = math::degrees(_pos_ref.lon_rad);
+	latitude = _pos_ref.getProjectionReferenceLat();
+	longitude = _pos_ref.getProjectionReferenceLon();
 	origin_alt  = _gps_alt_ref;
 	return _NED_origin_initialised;
 }
 
-bool Ekf::setEkfGlobalOrigin(const double latitude, const double longitude, const float altitude)
+void Ekf::setEkfGlobalOrigin(const double latitude, const double longitude, const float altitude)
 {
 	bool current_pos_available = false;
 	double current_lat = static_cast<double>(NAN);
@@ -714,53 +691,28 @@ bool Ekf::setEkfGlobalOrigin(const double latitude, const double longitude, cons
 	float current_alt  = 0.f;
 
 	// if we are already doing aiding, correct for the change in position since the EKF started navigating
-	if (map_projection_initialized(&_pos_ref) && isHorizontalAidingActive()) {
-		map_projection_reproject(&_pos_ref, _state.pos(0), _state.pos(1), &current_lat, &current_lon);
+	if (_pos_ref.isInitialized() && isHorizontalAidingActive()) {
+		_pos_ref.reproject(_state.pos(0), _state.pos(1), current_lat, current_lon);
 		current_alt = -_state.pos(2) + _gps_alt_ref;
 		current_pos_available = true;
 	}
 
 	// reinitialize map projection to latitude, longitude, altitude, and reset position
-	if (map_projection_init_timestamped(&_pos_ref, latitude, longitude, _time_last_imu) == 0) {
-		if (current_pos_available) {
-			// reset horizontal position
-			Vector2f position;
-			map_projection_project(&_pos_ref, current_lat, current_lon, &position(0), &position(1));
-			resetHorizontalPositionTo(position);
+	_pos_ref.initReference(latitude, longitude, _time_last_imu);
 
-			// reset altitude
-			_gps_alt_ref = altitude;
-			resetVerticalPositionTo(_gps_alt_ref - current_alt);
-		} else {
-			// reset altitude
-			_gps_alt_ref = altitude;
-		}
+	if (current_pos_available) {
+		// reset horizontal position
+		Vector2f position = _pos_ref.project(current_lat, current_lon);
+		resetHorizontalPositionTo(position);
 
-		return true;
+		// reset altitude
+		_gps_alt_ref = altitude;
+		resetVerticalPositionTo(_gps_alt_ref - current_alt);
+
+	} else {
+		// reset altitude
+		_gps_alt_ref = altitude;
 	}
-
-	return false;
-}
-
-/*
-	First argument returns GPS drift  metrics in the following array locations
-	0 : Horizontal position drift rate (m/s)
-	1 : Vertical position drift rate (m/s)
-	2 : Filtered horizontal velocity (m/s)
-	Second argument returns true when IMU movement is blocking the drift calculation
-	Function returns true if the metrics have been updated and not returned previously by this function
-*/
-bool Ekf::get_gps_drift_metrics(float drift[3], bool *blocked)
-{
-	memcpy(drift, _gps_drift_metrics, 3 * sizeof(float));
-	*blocked = !_control_status.flags.vehicle_at_rest;
-
-	if (_gps_drift_updated) {
-		_gps_drift_updated = false;
-		return true;
-	}
-
-	return false;
 }
 
 // get the 1-sigma horizontal and vertical position uncertainty of the ekf WGS-84 position
@@ -774,11 +726,14 @@ void Ekf::get_ekf_gpos_accuracy(float *ekf_eph, float *ekf_epv) const
 	// If we are dead-reckoning, use the innovations as a conservative alternate measure of the horizontal position error
 	// The reason is that complete rejection of measurements is often caused by heading misalignment or inertial sensing errors
 	// and using state variances for accuracy reporting is overly optimistic in these situations
-	if (_is_dead_reckoning && (_control_status.flags.gps)) {
-		hpos_err = math::max(hpos_err, sqrtf(sq(_gps_pos_innov(0)) + sq(_gps_pos_innov(1))));
+	if (_control_status.flags.inertial_dead_reckoning) {
+		if (_control_status.flags.gps) {
+			hpos_err = math::max(hpos_err, sqrtf(sq(_gps_pos_innov(0)) + sq(_gps_pos_innov(1))));
+		}
 
-	} else if (_is_dead_reckoning && (_control_status.flags.ev_pos)) {
-		hpos_err = math::max(hpos_err, sqrtf(sq(_ev_pos_innov(0)) + sq(_ev_pos_innov(1))));
+		if (_control_status.flags.ev_pos) {
+			hpos_err = math::max(hpos_err, sqrtf(sq(_ev_pos_innov(0)) + sq(_ev_pos_innov(1))));
+		}
 	}
 
 	*ekf_eph = hpos_err;
@@ -898,7 +853,7 @@ void Ekf::resetGyroBias()
 
 	// Zero the corresponding covariances and set
 	// variances to the values use for initial alignment
-	P.uncorrelateCovarianceSetVariance<3>(10, sq(_params.switch_on_gyro_bias * FILTER_UPDATE_PERIOD_S));
+	P.uncorrelateCovarianceSetVariance<3>(10, sq(_params.switch_on_gyro_bias * _dt_ekf_avg));
 }
 
 void Ekf::resetAccelBias()
@@ -908,7 +863,7 @@ void Ekf::resetAccelBias()
 
 	// Zero the corresponding covariances and set
 	// variances to the values use for initial alignment
-	P.uncorrelateCovarianceSetVariance<3>(13, sq(_params.switch_on_accel_bias * FILTER_UPDATE_PERIOD_S));
+	P.uncorrelateCovarianceSetVariance<3>(13, sq(_params.switch_on_accel_bias * _dt_ekf_avg));
 
 	// Set previous frame values
 	_prev_dvel_bias_var = P.slice<3, 3>(13, 13).diag();
@@ -924,10 +879,7 @@ void Ekf::resetMagBias()
 	P.uncorrelateCovarianceSetVariance<3>(19, sq(_params.mag_noise));
 
 	// reset any saved covariance data for re-use when auto-switching between heading and 3-axis fusion
-	// _saved_mag_bf_variance[0] is the the D earth axis
-	_saved_mag_bf_variance[1] = 0;
-	_saved_mag_bf_variance[2] = 0;
-	_saved_mag_bf_variance[3] = 0;
+	_saved_mag_bf_variance.zero();
 }
 
 // get EKF innovation consistency check status information comprising of:
@@ -958,12 +910,12 @@ void Ekf::get_innovation_test_status(uint16_t &status, float &mag, float &vel, f
 
 	if (_control_status.flags.ev_vel) {
 		float ev_vel = sqrtf(math::max(_ev_vel_test_ratio(0), _ev_vel_test_ratio(1)));
-		vel = math::max(math::max(vel, ev_vel), FLT_MIN);
+		vel = math::max(vel, ev_vel, FLT_MIN);
 	}
 
 	if (_control_status.flags.ev_pos) {
 		float ev_pos = sqrtf(_ev_pos_test_ratio(0));
-		pos = math::max(math::max(pos, ev_pos), FLT_MIN);
+		pos = math::max(pos, ev_pos, FLT_MIN);
 	}
 
 	if (isOnlyActiveSourceOfHorizontalAiding(_control_status.flags.opt_flow)) {
@@ -973,13 +925,13 @@ void Ekf::get_innovation_test_status(uint16_t &status, float &mag, float &vel, f
 
 	// return the vertical position innovation test ratio
 	if (_control_status.flags.baro_hgt) {
-		hgt = math::max(sqrtf(_baro_hgt_test_ratio(1)), FLT_MIN);
+		hgt = math::max(sqrtf(_baro_hgt_test_ratio), FLT_MIN);
 
 	} else if (_control_status.flags.gps_hgt) {
 		hgt = math::max(sqrtf(_gps_pos_test_ratio(1)), FLT_MIN);
 
 	} else if (_control_status.flags.rng_hgt) {
-		hgt = math::max(sqrtf(_rng_hgt_test_ratio(1)), FLT_MIN);
+		hgt = math::max(sqrtf(_rng_hgt_test_ratio), FLT_MIN);
 
 	} else if (_control_status.flags.ev_hgt) {
 		hgt = math::max(sqrtf(_ev_pos_test_ratio(1)), FLT_MIN);
@@ -1044,24 +996,33 @@ void Ekf::uncorrelateQuatFromOtherStates()
 void Ekf::update_deadreckoning_status()
 {
 	const bool velPosAiding = (_control_status.flags.gps || _control_status.flags.ev_pos || _control_status.flags.ev_vel)
-				&& (isRecent(_time_last_hor_pos_fuse, _params.no_aid_timeout_max)
-				|| isRecent(_time_last_hor_vel_fuse, _params.no_aid_timeout_max)
-				|| isRecent(_time_last_delpos_fuse, _params.no_aid_timeout_max));
+				  && (isRecent(_time_last_hor_pos_fuse, _params.no_aid_timeout_max)
+				      || isRecent(_time_last_hor_vel_fuse, _params.no_aid_timeout_max));
+
 	const bool optFlowAiding = _control_status.flags.opt_flow && isRecent(_time_last_of_fuse, _params.no_aid_timeout_max);
 	const bool airDataAiding = _control_status.flags.wind &&
 				   isRecent(_time_last_arsp_fuse, _params.no_aid_timeout_max) &&
 				   isRecent(_time_last_beta_fuse, _params.no_aid_timeout_max);
 
-	_is_wind_dead_reckoning = !velPosAiding && !optFlowAiding && airDataAiding;
-	_is_dead_reckoning = !velPosAiding && !optFlowAiding && !airDataAiding;
+	_control_status.flags.wind_dead_reckoning = !velPosAiding && !optFlowAiding && airDataAiding;
+	_control_status.flags.inertial_dead_reckoning = !velPosAiding && !optFlowAiding && !airDataAiding;
 
-	if (!_is_dead_reckoning) {
-		_time_last_aiding = _time_last_imu - _params.no_aid_timeout_max;
+	if (!_control_status.flags.inertial_dead_reckoning) {
+		if (_time_last_imu > _params.no_aid_timeout_max) {
+			_time_last_aiding = _time_last_imu - _params.no_aid_timeout_max;
+		}
 	}
 
 	// report if we have been deadreckoning for too long, initial state is deadreckoning until aiding is present
-	_deadreckon_time_exceeded = (_time_last_aiding == 0)
+	bool deadreckon_time_exceeded = (_time_last_aiding == 0)
 				    || isTimedOut(_time_last_aiding, (uint64_t)_params.valid_timeout_max);
+
+	if (!_deadreckon_time_exceeded && deadreckon_time_exceeded) {
+		// deadreckon time now exceeded
+		ECL_WARN("dead reckon time exceeded");
+	}
+
+	_deadreckon_time_exceeded = deadreckon_time_exceeded;
 }
 
 // calculate the variances for the rotation vector equivalent
@@ -1284,29 +1245,73 @@ void Ekf::startMag3DFusion()
 
 void Ekf::startBaroHgtFusion()
 {
-	setControlBaroHeight();
-
-	// We don't need to set a height sensor offset
-	// since we track a separate _baro_hgt_offset
-	_hgt_sensor_offset = 0.0f;
-
-	// Turn off ground effect compensation if it times out
-	if (_control_status.flags.gnd_effect) {
-		if (isTimedOut(_time_last_gnd_effect_on, GNDEFFECT_TIMEOUT)) {
-
-			_control_status.flags.gnd_effect = false;
+	if (!_control_status.flags.baro_hgt) {
+		if (!_control_status.flags.rng_hgt) {
+			resetHeightToBaro();
 		}
+
+		setControlBaroHeight();
+
+		// We don't need to set a height sensor offset
+		// since we track a separate _baro_hgt_offset
+		_hgt_sensor_offset = 0.0f;
 	}
 }
 
 void Ekf::startGpsHgtFusion()
 {
-	setControlGPSHeight();
+	if (!_control_status.flags.gps_hgt) {
+		if (_control_status.flags.rng_hgt) {
+			// swith out of range aid
+			// calculate height sensor offset such that current
+			// measurement matches our current height estimate
+			_hgt_sensor_offset = _gps_sample_delayed.hgt - _gps_alt_ref + _state.pos(2);
 
-	// we have just switched to using gps height, calculate height sensor offset such that current
-	// measurement matches our current height estimate
-	if (_control_status_prev.flags.gps_hgt != _control_status.flags.gps_hgt) {
-		_hgt_sensor_offset = _gps_sample_delayed.hgt - _gps_alt_ref + _state.pos(2);
+		} else {
+			_hgt_sensor_offset = 0.f;
+			resetHeightToGps();
+		}
+
+		setControlGPSHeight();
+	}
+}
+
+void Ekf::startRngHgtFusion()
+{
+	if (!_control_status.flags.rng_hgt) {
+		setControlRangeHeight();
+
+		// Range finder is the primary height source, the ground is now the datum used
+		// to compute the local vertical position
+		_hgt_sensor_offset = 0.f;
+
+		if (!_control_status_prev.flags.ev_hgt) {
+			// EV and range finders are using the same height datum
+			resetHeightToRng();
+		}
+	}
+}
+
+void Ekf::startRngAidHgtFusion()
+{
+	if (!_control_status.flags.rng_hgt) {
+		setControlRangeHeight();
+
+		// calculate height sensor offset such that current
+		// measurement matches our current height estimate
+		_hgt_sensor_offset = _terrain_vpos;
+	}
+}
+
+void Ekf::startEvHgtFusion()
+{
+	if (!_control_status.flags.ev_hgt) {
+		setControlEVHeight();
+
+		if (!_control_status_prev.flags.rng_hgt) {
+			// EV and range finders are using the same height datum
+			resetHeightToEv();
+		}
 	}
 }
 
@@ -1314,12 +1319,13 @@ void Ekf::updateBaroHgtOffset()
 {
 	// calculate a filtered offset between the baro origin and local NED origin if we are not
 	// using the baro as a height reference
-	if (!_control_status.flags.baro_hgt && _baro_data_ready) {
+	if (!_control_status.flags.baro_hgt && _baro_data_ready && (_delta_time_baro_us != 0)) {
 		const float local_time_step = math::constrain(1e-6f * _delta_time_baro_us, 0.0f, 1.0f);
 
 		// apply a 10 second first order low pass filter to baro offset
-		const float offset_rate_correction =  0.1f * (_baro_sample_delayed.hgt + _state.pos(2) -
-								_baro_hgt_offset);
+		const float unbiased_baro = _baro_sample_delayed.hgt - _baro_b_est.getBias();
+
+		const float offset_rate_correction = 0.1f * (unbiased_baro + _state.pos(2) - _baro_hgt_offset);
 		_baro_hgt_offset += local_time_step * math::constrain(offset_rate_correction, -0.1f, 0.1f);
 	}
 }
@@ -1334,6 +1340,55 @@ float Ekf::getGpsHeightVariance()
 	return gps_alt_var;
 }
 
+void Ekf::updateBaroHgtBias()
+{
+	// Baro bias estimation using GPS altitude
+	if (_baro_data_ready && (_delta_time_baro_us != 0)) {
+		const float dt = math::constrain(1e-6f * _delta_time_baro_us, 0.0f, 1.0f);
+		_baro_b_est.setMaxStateNoise(_params.baro_noise);
+		_baro_b_est.setProcessNoiseStdDev(_params.baro_drift_rate);
+		_baro_b_est.predict(dt);
+	}
+
+	if (_gps_data_ready && !_gps_intermittent
+	    && _gps_checks_passed && _NED_origin_initialised
+	    && !_baro_hgt_faulty) {
+		// Use GPS altitude as a reference to compute the baro bias measurement
+		const float baro_bias = (_baro_sample_delayed.hgt - _baro_hgt_offset)
+					- (_gps_sample_delayed.hgt - _gps_alt_ref);
+		const float baro_bias_var = getGpsHeightVariance() + sq(_params.baro_noise);
+		_baro_b_est.fuseBias(baro_bias, baro_bias_var);
+	}
+}
+
+float Ekf::getRngHeightVariance() const
+{
+	const float dist_dependant_var = sq(_params.range_noise_scaler * _range_sensor.getDistBottom());
+	const float var = sq(_params.range_noise) + dist_dependant_var;
+	const float var_sat = fmaxf(var, 0.001f);
+	return var_sat;
+}
+
+void Ekf::updateGroundEffect()
+{
+	if (_control_status.flags.in_air && !_control_status.flags.fixed_wing) {
+		if (isTerrainEstimateValid()) {
+			// automatically set ground effect if terrain is valid
+			float height = _terrain_vpos - _state.pos(2);
+			_control_status.flags.gnd_effect = (height < _params.gnd_effect_max_hgt);
+
+		} else if (_control_status.flags.gnd_effect) {
+			// Turn off ground effect compensation if it times out
+			if (isTimedOut(_time_last_gnd_effect_on, GNDEFFECT_TIMEOUT)) {
+				_control_status.flags.gnd_effect = false;
+			}
+		}
+
+	} else {
+		_control_status.flags.gnd_effect = false;
+	}
+}
+
 Vector3f Ekf::getVisionVelocityInEkfFrame() const
 {
 	Vector3f vel;
@@ -1342,19 +1397,22 @@ Vector3f Ekf::getVisionVelocityInEkfFrame() const
 	const Vector3f vel_offset_body = _ang_rate_delayed_raw % pos_offset_body;
 
 	// rotate measurement into correct earth frame if required
-	switch(_ev_sample_delayed.vel_frame) {
-		case velocity_frame_t::BODY_FRAME_FRD:
-			vel = _R_to_earth * (_ev_sample_delayed.vel - vel_offset_body);
-			break;
-		case velocity_frame_t::LOCAL_FRAME_FRD:
-			const Vector3f vel_offset_earth = _R_to_earth * vel_offset_body;
-			if (_params.fusion_mode & MASK_ROTATE_EV)
-			{
-				vel = _R_ev_to_ekf *_ev_sample_delayed.vel - vel_offset_earth;
-			} else {
-				vel = _ev_sample_delayed.vel - vel_offset_earth;
-			}
-			break;
+	switch (_ev_sample_delayed.vel_frame) {
+	case velocity_frame_t::BODY_FRAME_FRD:
+		vel = _R_to_earth * (_ev_sample_delayed.vel - vel_offset_body);
+		break;
+
+	case velocity_frame_t::LOCAL_FRAME_FRD:
+		const Vector3f vel_offset_earth = _R_to_earth * vel_offset_body;
+
+		if (_params.fusion_mode & MASK_ROTATE_EV) {
+			vel = _R_ev_to_ekf * _ev_sample_delayed.vel - vel_offset_earth;
+
+		} else {
+			vel = _ev_sample_delayed.vel - vel_offset_earth;
+		}
+
+		break;
 	}
 
 	return vel;
@@ -1365,17 +1423,17 @@ Vector3f Ekf::getVisionVelocityVarianceInEkfFrame() const
 	Matrix3f ev_vel_cov = _ev_sample_delayed.velCov;
 
 	// rotate measurement into correct earth frame if required
-	switch(_ev_sample_delayed.vel_frame) {
-		case velocity_frame_t::BODY_FRAME_FRD:
-			ev_vel_cov = _R_to_earth * ev_vel_cov * _R_to_earth.transpose();
-			break;
+	switch (_ev_sample_delayed.vel_frame) {
+	case velocity_frame_t::BODY_FRAME_FRD:
+		ev_vel_cov = _R_to_earth * ev_vel_cov * _R_to_earth.transpose();
+		break;
 
-		case velocity_frame_t::LOCAL_FRAME_FRD:
-			if(_params.fusion_mode & MASK_ROTATE_EV)
-			{
-				ev_vel_cov = _R_ev_to_ekf * ev_vel_cov * _R_ev_to_ekf.transpose();
-			}
-			break;
+	case velocity_frame_t::LOCAL_FRAME_FRD:
+		if (_params.fusion_mode & MASK_ROTATE_EV) {
+			ev_vel_cov = _R_ev_to_ekf * ev_vel_cov * _R_ev_to_ekf.transpose();
+		}
+
+		break;
 	}
 
 	return ev_vel_cov.diag();
@@ -1434,56 +1492,90 @@ void Ekf::increaseQuatYawErrVariance(float yaw_variance)
 // save covariance data for re-use when auto-switching between heading and 3-axis fusion
 void Ekf::saveMagCovData()
 {
-	// save variances for the D earth axis and XYZ body axis field
-	for (uint8_t index = 0; index <= 3; index ++) {
-		_saved_mag_bf_variance[index] = P(index + 18, index + 18);
-	}
+	// save variances for XYZ body axis field
+	_saved_mag_bf_variance(0) = P(19, 19);
+	_saved_mag_bf_variance(1) = P(20, 20);
+	_saved_mag_bf_variance(2) = P(21, 21);
 
 	// save the NE axis covariance sub-matrix
-	_saved_mag_ef_covmat = P.slice<2, 2>(16, 16);
+	_saved_mag_ef_ne_covmat = P.slice<2, 2>(16, 16);
+
+	// save variance for the D earth axis
+	_saved_mag_ef_d_variance = P(18, 18);
 }
 
 void Ekf::loadMagCovData()
 {
-	// re-instate variances for the D earth axis and XYZ body axis field
-	for (uint8_t index = 0; index <= 3; index ++) {
-		P(index + 18, index + 18) = _saved_mag_bf_variance[index];
-	}
+	// re-instate variances for the XYZ body axis field
+	P(19, 19) = _saved_mag_bf_variance(0);
+	P(20, 20) = _saved_mag_bf_variance(1);
+	P(21, 21) = _saved_mag_bf_variance(2);
 
 	// re-instate the NE axis covariance sub-matrix
-	P.slice<2, 2>(16, 16) = _saved_mag_ef_covmat;
+	P.slice<2, 2>(16, 16) = _saved_mag_ef_ne_covmat;
+
+	// re-instate the D earth axis variance
+	P(18, 18) = _saved_mag_ef_d_variance;
+}
+
+void Ekf::startAirspeedFusion()
+{
+	// If starting wind state estimation, reset the wind states and covariances before fusing any data
+	if (!_control_status.flags.wind) {
+		// activate the wind states
+		_control_status.flags.wind = true;
+		// reset the wind speed states and corresponding covariances
+		resetWindUsingAirspeed();
+	}
+
+	_control_status.flags.fuse_aspd = true;
+}
+
+void Ekf::stopAirspeedFusion()
+{
+	_control_status.flags.fuse_aspd = false;
 }
 
 void Ekf::startGpsFusion()
 {
-	resetHorizontalPositionToGps();
+	if (!_control_status.flags.gps) {
+		resetHorizontalPositionToGps(_gps_sample_delayed);
 
-	// when using optical flow,
-	// velocity reset is not necessary
-	if (!_control_status.flags.opt_flow) {
-		resetVelocityToGps();
+		// when already using another velocity source velocity reset is not necessary
+		if (!_control_status.flags.opt_flow && !_control_status.flags.ev_vel) {
+			resetVelocityToGps(_gps_sample_delayed);
+		}
+
+		_information_events.flags.starting_gps_fusion = true;
+		ECL_INFO("starting GPS fusion");
+		_control_status.flags.gps = true;
 	}
-
-	_information_events.flags.starting_gps_fusion = true;
-	ECL_INFO("starting GPS fusion");
-	_control_status.flags.gps = true;
 }
 
 void Ekf::stopGpsFusion()
 {
-	stopGpsPosFusion();
-	stopGpsVelFusion();
-	stopGpsYawFusion();
+	if (_control_status.flags.gps) {
+		stopGpsPosFusion();
+		stopGpsVelFusion();
+	}
+
+	if (_control_status.flags.gps_yaw) {
+		stopGpsYawFusion();
+	}
 
 	// We do not need to know the true North anymore
 	// EV yaw can start again
-	_inhibit_ev_yaw_use = false;;
+	_inhibit_ev_yaw_use = false;
 }
 
 void Ekf::stopGpsPosFusion()
 {
 	_control_status.flags.gps = false;
-	_control_status.flags.gps_hgt = false;
+
+	if (_control_status.flags.gps_hgt) {
+		startBaroHgtFusion();
+	}
+
 	_gps_pos_innov.setZero();
 	_gps_pos_innov_var.setZero();
 	_gps_pos_test_ratio.setZero();
@@ -1498,11 +1590,15 @@ void Ekf::stopGpsVelFusion()
 
 void Ekf::startGpsYawFusion()
 {
-	_control_status.flags.mag_dec = false;
-	stopEvYawFusion();
-	stopMagHdgFusion();
-	stopMag3DFusion();
-	_control_status.flags.gps_yaw = true;
+	if (resetYawToGps()) {
+		_control_status.flags.yaw_align = true;
+		_control_status.flags.mag_dec = false;
+		stopEvYawFusion();
+		stopMagHdgFusion();
+		stopMag3DFusion();
+		_control_status.flags.gps_yaw = true;
+	}
+
 }
 
 void Ekf::stopGpsYawFusion()
@@ -1513,7 +1609,7 @@ void Ekf::stopGpsYawFusion()
 void Ekf::startEvPosFusion()
 {
 	_control_status.flags.ev_pos = true;
-	resetHorizontalPosition();
+	resetHorizontalPositionToVision();
 	_information_events.flags.starting_vision_pos_fusion = true;
 	ECL_INFO("starting vision pos fusion");
 }
@@ -1521,7 +1617,7 @@ void Ekf::startEvPosFusion()
 void Ekf::startEvVelFusion()
 {
 	_control_status.flags.ev_vel = true;
-	resetVelocity();
+	resetVelocityToVision();
 	_information_events.flags.starting_vision_vel_fusion = true;
 	ECL_INFO("starting vision vel fusion");
 }
@@ -1576,10 +1672,13 @@ void Ekf::stopAuxVelFusion()
 
 void Ekf::stopFlowFusion()
 {
-	_control_status.flags.opt_flow = false;
-	_flow_innov.setZero();
-	_flow_innov_var.setZero();
-	_optflow_test_ratio = 0.0f;
+	if (_control_status.flags.opt_flow) {
+		ECL_INFO("stopping optical flow fusion");
+		_control_status.flags.opt_flow = false;
+		_flow_innov.setZero();
+		_flow_innov_var.setZero();
+		_optflow_test_ratio = 0.0f;
+	}
 }
 
 void Ekf::resetQuatStateYaw(float yaw, float yaw_variance, bool update_buffer)
@@ -1588,10 +1687,8 @@ void Ekf::resetQuatStateYaw(float yaw, float yaw_variance, bool update_buffer)
 	const Quatf quat_before_reset = _state.quat_nominal;
 
 	// update transformation matrix from body to world frame using the current estimate
-	_R_to_earth = Dcmf(_state.quat_nominal);
-
 	// update the rotation matrix using the new yaw value
-	_R_to_earth = updateYawInRotMat(yaw, _R_to_earth);
+	_R_to_earth = updateYawInRotMat(yaw, Dcmf(_state.quat_nominal));
 
 	// calculate the amount that the quaternion has changed by
 	const Quatf quat_after_reset(_R_to_earth);
@@ -1630,43 +1727,45 @@ void Ekf::resetQuatStateYaw(float yaw, float yaw_variance, bool update_buffer)
 // Returns true if the reset was successful
 bool Ekf::resetYawToEKFGSF()
 {
-	// don't allow reet using the EKF-GSF estimate until the filter has started fusing velocity
-	// data and the yaw estimate has converged
-	float new_yaw, new_yaw_variance;
-
-	if (!_yawEstimator.getYawData(&new_yaw, &new_yaw_variance)) {
+	if (!isYawEmergencyEstimateAvailable()) {
 		return false;
 	}
 
-	const bool has_converged = new_yaw_variance < sq(_params.EKFGSF_yaw_err_max);
-
-	if (!has_converged) {
-		return false;
-	}
-
-	resetQuatStateYaw(new_yaw, new_yaw_variance, true);
-
-	// reset velocity and position states to GPS - if yaw is fixed then the filter should start to operate correctly
-	resetVelocity();
-	resetHorizontalPosition();
+	resetQuatStateYaw(_yawEstimator.getYaw(), _yawEstimator.getYawVar(), true);
 
 	// record a magnetic field alignment event to prevent possibility of the EKF trying to reset the yaw to the mag later in flight
 	_flt_mag_align_start_time = _imu_sample_delayed.time_us;
 	_control_status.flags.yaw_align = true;
 
-	if (_params.mag_fusion_type == MAG_FUSE_TYPE_NONE) {
-		_information_events.flags.yaw_aligned_to_imu_gps = true;
-		ECL_INFO("Yaw aligned using IMU and GPS");
-
-	} else {
+	if (_control_status.flags.mag_hdg || _control_status.flags.mag_3D) {
 		// stop using the magnetometer in the main EKF otherwise it's fusion could drag the yaw around
 		// and cause another navigation failure
 		_control_status.flags.mag_fault = true;
 		_warning_events.flags.emergency_yaw_reset_mag_stopped = true;
-		ECL_WARN("Emergency yaw reset - mag use stopped");
+
+	} else if (_control_status.flags.gps_yaw) {
+		_control_status.flags.gps_yaw_fault = true;
+		_warning_events.flags.emergency_yaw_reset_gps_yaw_stopped = true;
+
+	} else if (_control_status.flags.ev_yaw) {
+		_inhibit_ev_yaw_use = true;
 	}
 
+	_ekfgsf_yaw_reset_time = _time_last_imu;
+	_ekfgsf_yaw_reset_count++;
+
 	return true;
+}
+
+bool Ekf::isYawEmergencyEstimateAvailable() const
+{
+	// don't allow reet using the EKF-GSF estimate until the filter has started fusing velocity
+	// data and the yaw estimate has converged
+	if (!_yawEstimator.isActive()) {
+		return false;
+	}
+
+	return _yawEstimator.getYawVar() < sq(_params.EKFGSF_yaw_err_max);
 }
 
 bool Ekf::getDataEKFGSF(float *yaw_composite, float *yaw_variance, float yaw[N_MODELS_EKFGSF],
@@ -1677,13 +1776,15 @@ bool Ekf::getDataEKFGSF(float *yaw_composite, float *yaw_variance, float yaw[N_M
 
 void Ekf::runYawEKFGSF()
 {
-	float TAS;
+	float TAS = 0.f;
 
-	if (isTimedOut(_airspeed_sample_delayed.time_us, 1000000) && _control_status.flags.fixed_wing) {
-		TAS = _params.EKFGSF_tas_default;
+	if (_control_status.flags.fixed_wing) {
+		if (isTimedOut(_airspeed_sample_delayed.time_us, 1000000)) {
+			TAS = _params.EKFGSF_tas_default;
 
-	} else {
-		TAS = _airspeed_sample_delayed.true_airspeed;
+		} else if (_airspeed_sample_delayed.true_airspeed >= _params.arsp_thr) {
+			TAS = _airspeed_sample_delayed.true_airspeed;
+		}
 	}
 
 	const Vector3f imu_gyro_bias = getGyroBias();
@@ -1691,7 +1792,7 @@ void Ekf::runYawEKFGSF()
 
 	// basic sanity check on GPS velocity data
 	if (_gps_data_ready && _gps_sample_delayed.vacc > FLT_EPSILON &&
-	    ISFINITE(_gps_sample_delayed.vel(0)) && ISFINITE(_gps_sample_delayed.vel(1))) {
+	    PX4_ISFINITE(_gps_sample_delayed.vel(0)) && PX4_ISFINITE(_gps_sample_delayed.vel(1))) {
 		_yawEstimator.setVelocity(_gps_sample_delayed.vel.xy(), _gps_sample_delayed.vacc);
 	}
 }
@@ -1700,4 +1801,8 @@ void Ekf::resetGpsDriftCheckFilters()
 {
 	_gps_velNE_filt.setZero();
 	_gps_pos_deriv_filt.setZero();
+
+	_gps_horizontal_position_drift_rate_m_s = NAN;
+	_gps_vertical_position_drift_rate_m_s = NAN;
+	_gps_filtered_horizontal_velocity_m_s = NAN;
 }

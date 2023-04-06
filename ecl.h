@@ -84,6 +84,12 @@ using ecl_abstime = uint64_t;
 #define ECL_WARN(X, ...) fprintf(stderr, X "\n", ##__VA_ARGS__)
 #define ECL_ERR(X, ...) fprintf(stderr, X "\n", ##__VA_ARGS__)
 
+# if defined(DEBUG_BUILD)
+#  define ECL_DEBUG(X, ...) fprintf(stderr, X "\n", ##__VA_ARGS__)
+# else
+#  define ECL_DEBUG(X, ...)
+#endif
+
 #endif /* PX4_POSIX || PX4_NUTTX */
 
 #include <math.h>

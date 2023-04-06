@@ -1,6 +1,7 @@
-#include <matrix/math.hpp>
+#include "matrix/math.hpp"
 
-#pragma once
+#ifndef EKF_UTILS_HPP
+#define EKF_UTILS_HPP
 
 // return the square of two floating point numbers - used in auto coded sections
 static constexpr float sq(float var) { return var * var; }
@@ -26,33 +27,50 @@ matrix::Dcmf quatToInverseRotMat(const matrix::Quatf &quat);
 // We should use a 3-2-1 Tait-Bryan (yaw-pitch-roll) rotation sequence
 // when there is more roll than pitch tilt and a 3-1-2 rotation sequence
 // when there is more pitch than roll tilt to avoid gimbal lock.
-bool shouldUse321RotationSequence(const matrix::Dcmf& R);
+inline bool shouldUse321RotationSequence(const matrix::Dcmf &R) { return fabsf(R(2, 0)) < fabsf(R(2, 1)); }
 
-float getEuler321Yaw(const matrix::Quatf& q);
-float getEuler321Yaw(const matrix::Dcmf& R);
+inline float getEuler321Yaw(const matrix::Dcmf &R) { return atan2f(R(1, 0), R(0, 0)); }
+inline float getEuler312Yaw(const matrix::Dcmf &R) { return atan2f(-R(0, 1), R(1, 1)); }
 
-float getEuler312Yaw(const matrix::Quatf& q);
-float getEuler312Yaw(const matrix::Dcmf& R);
+float getEuler321Yaw(const matrix::Quatf &q);
+float getEuler312Yaw(const matrix::Quatf &q);
 
-matrix::Dcmf updateEuler321YawInRotMat(float yaw, const matrix::Dcmf& rot_in);
-matrix::Dcmf updateEuler312YawInRotMat(float yaw, const matrix::Dcmf& rot_in);
+inline float getEulerYaw(const matrix::Dcmf &R)
+{
+	if (shouldUse321RotationSequence(R)) {
+		return getEuler321Yaw(R);
 
-// Checks which euler rotation sequence to use and update yaw in rotation matrix
-matrix::Dcmf updateYawInRotMat(float yaw, const matrix::Dcmf& rot_in);
-
-namespace ecl{
-	inline float powf(float x, int exp)
-	{
-		float ret;
-		if (exp > 0) {
-			ret = x;
-			for (int count = 1; count < exp; count++) {
-				ret *= x;
-			}
-			return ret;
-		} else if (exp < 0) {
-			return 1.0f / ecl::powf(x, -exp);
-		}
-		return 1.0f;
+	} else {
+		return getEuler312Yaw(R);
 	}
 }
+
+matrix::Dcmf updateEuler321YawInRotMat(float yaw, const matrix::Dcmf &rot_in);
+matrix::Dcmf updateEuler312YawInRotMat(float yaw, const matrix::Dcmf &rot_in);
+
+// Checks which euler rotation sequence to use and update yaw in rotation matrix
+matrix::Dcmf updateYawInRotMat(float yaw, const matrix::Dcmf &rot_in);
+
+namespace ecl
+{
+inline float powf(float x, int exp)
+{
+	float ret;
+
+	if (exp > 0) {
+		ret = x;
+
+		for (int count = 1; count < exp; count++) {
+			ret *= x;
+		}
+
+		return ret;
+
+	} else if (exp < 0) {
+		return 1.0f / ecl::powf(x, -exp);
+	}
+
+	return 1.0f;
+}
+}
+#endif // EKF_UTILS_HPP

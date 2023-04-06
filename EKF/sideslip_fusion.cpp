@@ -42,8 +42,8 @@
  */
 
 #include "ekf.h"
-#include <ecl.h>
-#include <mathlib/mathlib.h>
+
+#include "mathlib/mathlib.h"
 
 void Ekf::fuseSideslip()
 {
@@ -72,7 +72,7 @@ void Ekf::fuseSideslip()
 		const float R_BETA = sq(_params.beta_noise); // observation noise variance
 
 		// determine if we need the sideslip fusion to correct states other than wind
-		bool update_wind_only = !_is_wind_dead_reckoning;
+		bool update_wind_only = !_control_status.flags.wind_dead_reckoning;
 
 		// Intermediate Values
 		const float HK0 = vn - vwn;
@@ -137,10 +137,10 @@ void Ekf::fuseSideslip()
 			_fault_status.flags.bad_sideslip = true;
 
 			// if we are getting aiding from other sources, warn and reset the wind states and covariances only
-			const char* action_string = nullptr;
+			const char *action_string = nullptr;
+
 			if (update_wind_only) {
-				resetWindStates();
-				resetWindCovariance();
+				resetWind();
 				action_string = "wind";
 
 			} else {
@@ -148,12 +148,14 @@ void Ekf::fuseSideslip()
 				_state.wind_vel.setZero();
 				action_string = "full";
 			}
+
 			ECL_ERR("sideslip badly conditioned - %s covariance reset", action_string);
 
 			return;
 		}
+
 		_fault_status.flags.bad_sideslip = false;
-		const float HK52 = HK16/_beta_innov_var;
+		const float HK52 = HK16 / _beta_innov_var;
 
 		// Calculate predicted sideslip angle and innovation using small angle approximation
 		_beta_innov = rel_wind_body(1) / rel_wind_body(0);
@@ -184,6 +186,7 @@ void Ekf::fuseSideslip()
 
 		// Calculate Kalman gains
 		Vector24f Kfusion;
+
 		if (!update_wind_only) {
 
 			Kfusion(0) = HK38*HK52;

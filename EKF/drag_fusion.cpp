@@ -41,10 +41,10 @@
  */
 
 #include "ekf.h"
-#include <ecl.h>
-#include <mathlib/mathlib.h>
 
-void Ekf::fuseDrag()
+#include "mathlib/mathlib.h"
+
+void Ekf::fuseDrag(const dragSample &drag_sample)
 {
 	SparseVector24f<0,1,2,3,4,5,6,22,23> Hfusion;  // Observation Jacobians
 	Vector24f Kfusion; // Kalman gain vector
@@ -89,7 +89,7 @@ void Ekf::fuseDrag()
 	// perform sequential fusion of XY specific forces
 	for (uint8_t axis_index = 0; axis_index < 2; axis_index++) {
 		// measured drag acceleration corrected for sensor bias
-		const float mea_acc = _drag_sample_delayed.accelXY(axis_index)  - _state.delta_vel_bias(axis_index) / _dt_ekf_avg;
+		const float mea_acc = drag_sample.accelXY(axis_index)  - _state.delta_vel_bias(axis_index) / _dt_ekf_avg;
 
 		// predicted drag force sign is opposite to predicted wind relative velocity
 		const float drag_sign = (rel_wind_body(axis_index) >= 0.f) ? -1.f : 1.f;
@@ -98,8 +98,10 @@ void Ekf::fuseDrag()
 		// equivalent airspeed squared, and rotor momentum drag that is proportional to true airspeed
 		// parallel to the rotor disc and mass flow through the rotor disc.
 		float pred_acc = 0.0f; // predicted drag acceleration
+
 		if (axis_index == 0) {
 			float Kacc; // Derivative of specific force wrt airspeed
+
 			if (using_mcoef && using_bcoef_x) {
 				// Use a combination of bluff body and propeller momentum drag
 				const float bcoef_inv = 1.0f / _params.bcoef_x;
@@ -108,10 +110,12 @@ void Ekf::fuseDrag()
 				const float airspeed = (_params.bcoef_x  / rho) * (- mcoef_corrrected  + sqrtf(sq(mcoef_corrrected) + 2.0f * rho * bcoef_inv * fabsf(mea_acc)));
 				Kacc = fmaxf(1e-1f, rho * bcoef_inv * airspeed + mcoef_corrrected);
 				pred_acc = 0.5f * bcoef_inv * rho * sq(rel_wind_body(0)) * drag_sign - rel_wind_body(0) * mcoef_corrrected;
+
 			} else if (using_mcoef) {
 				// Use propeller momentum drag only
 				Kacc = fmaxf(1e-1f, mcoef_corrrected);
 				pred_acc = - rel_wind_body(0) * mcoef_corrrected;
+
 			} else if (using_bcoef_x) {
 				// Use bluff body drag only
 				// The airspeed used for linearisation is calculated from the measured acceleration by solving the following quadratic
@@ -120,6 +124,7 @@ void Ekf::fuseDrag()
 				const float bcoef_inv = 1.0f / _params.bcoef_x;
 				Kacc = fmaxf(1e-1f, rho * bcoef_inv * airspeed);
 				pred_acc = 0.5f * bcoef_inv * rho * sq(rel_wind_body(0)) * drag_sign;
+
 			} else {
 				// skip this axis
 				continue;
@@ -165,6 +170,7 @@ void Ekf::fuseDrag()
 			if (_drag_innov_var(0) < R_ACC) {
 				return;
 			}
+
 			const float HK32 = Kacc / _drag_innov_var(0);
 
 			// Observation Jacobians
@@ -208,6 +214,7 @@ void Ekf::fuseDrag()
 
 		} else if (axis_index == 1) {
 			float Kacc; // Derivative of specific force wrt airspeed
+
 			if (using_mcoef && using_bcoef_y) {
 				// Use a combination of bluff body and propeller momentum drag
 				const float bcoef_inv = 1.0f / _params.bcoef_y;
@@ -216,10 +223,12 @@ void Ekf::fuseDrag()
 				const float airspeed = (_params.bcoef_y  / rho) * (- mcoef_corrrected  + sqrtf(sq(mcoef_corrrected) + 2.0f * rho * bcoef_inv * fabsf(mea_acc)));
 				Kacc = fmaxf(1e-1f, rho * bcoef_inv * airspeed + mcoef_corrrected);
 				pred_acc = 0.5f * bcoef_inv * rho * sq(rel_wind_body(1)) * drag_sign - rel_wind_body(1) * mcoef_corrrected;
+
 			} else if (using_mcoef) {
 				// Use propeller momentum drag only
 				Kacc = fmaxf(1e-1f, mcoef_corrrected);
 				pred_acc = - rel_wind_body(1) * mcoef_corrrected;
+
 			} else if (using_bcoef_y) {
 				// Use bluff body drag only
 				// The airspeed used for linearisation is calculated from the measured acceleration by solving the following quadratic
@@ -228,6 +237,7 @@ void Ekf::fuseDrag()
 				const float bcoef_inv = 1.0f / _params.bcoef_y;
 				Kacc = fmaxf(1e-1f, rho * bcoef_inv * airspeed);
 				pred_acc = 0.5f * bcoef_inv * rho * sq(rel_wind_body(1)) * drag_sign;
+
 			} else {
 				// nothing more to do
 				return;
@@ -273,6 +283,7 @@ void Ekf::fuseDrag()
 				// calculation is badly conditioned
 				return;
 			}
+
 			const float HK32 = Kacc / _drag_innov_var(1);
 
 			// Observation Jacobians

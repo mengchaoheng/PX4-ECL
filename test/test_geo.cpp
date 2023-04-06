@@ -33,7 +33,7 @@
 
 #include <gtest/gtest.h>
 #include <math.h>
-#include <mathlib/mathlib.h>
+#include "mathlib/mathlib.h"
 #include <memory>
 #include <geo/geo.h>
 
