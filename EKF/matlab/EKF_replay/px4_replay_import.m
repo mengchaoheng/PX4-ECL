@@ -1,9 +1,12 @@
+clear all;
+close all;
 %% PX4 replay: import sensors CSV
 % the following variables must be set beforehand!
-sensors_file = '17_48_41_sensor_combined_0';
-air_data_file = '17_48_41_vehicle_air_data_0';
-magnetometer_file = '17_48_41_vehicle_magnetometer_0';
-gps_file = '17_48_41_vehicle_gps_position_0';
+sensors_file = '../../../csv_data/17_48_41_sensor_combined_0';
+air_data_file = '../../../csv_data/17_48_41_vehicle_air_data_0';
+magnetometer_file = '../../../csv_data/17_48_41_vehicle_magnetometer_0';
+% or don't use it
+% gps_file = '../../../csv_data/17_48_41_vehicle_gps_position_0';
 if ~exist('sensors_file','var')
     error('sensors_file missing');
 end
@@ -14,7 +17,8 @@ if ~exist('magnetometer_file','var')
     error('magnetometer_file missing');
 end
 if ~exist('gps_file','var')
-    error('gps_file missing');
+    disp('gps_file missing');
+    param.fusion.enable=0;
 end
 
 if ~exist('attitude_file','var')
@@ -65,7 +69,7 @@ accelerometer_integral_dt = tbl.accelerometer_integral_dt;
 clear opts tbl
 
 %% Import Baro data from text file
-opts = delimitedTextImportOptions("NumVariables", 5);
+opts = delimitedTextImportOptions("NumVariables", 7);
 opts.DataLines = [2, Inf];
 opts.Delimiter = ",";
 
@@ -88,7 +92,7 @@ rho = tbl.rho;
 clear opts tbl
 
 %% Import Mag data from text file
-opts = delimitedTextImportOptions("NumVariables", 4);
+opts = delimitedTextImportOptions("NumVariables", 6);
 opts.DataLines = [2, Inf];
 opts.Delimiter = ",";
 
@@ -116,9 +120,9 @@ cd ../;
 
 
 %% ------                       SECTION 2: GPS                       ------
-
+if exist('gps_file','var')
 %% Import data from text file
-opts = delimitedTextImportOptions("NumVariables", 25);
+opts = delimitedTextImportOptions("NumVariables", 27);
 opts.DataLines = [2, Inf];
 opts.Delimiter = ",";
 
@@ -166,7 +170,7 @@ cd Common/;
 convert_px4_vehicle_gps_position_csv;
 cd ../;
 
-
+end
 %% ------     SECTION 3: Ground Truth Data (STIL only, optional)     ------
 
 if exist('attitude_file','var') && exist('localpos_file','var') && exist('globalpos_file','var')

@@ -4,14 +4,14 @@ function covariance = InitCovariance(param,dt,gps_alignment,gps_data)
 Sigma_quat = param.alignment.quatErr * [1;1;1;1];
 
 % Define velocity state errors
-if (gps_alignment == 1)
+if (gps_alignment == 1) && param.fusion.enable
     Sigma_velocity = gps_data.spd_error(gps_data.start_index) * [1;1;1];
 else
     Sigma_velocity = [param.alignment.velErrNE;param.alignment.velErrNE;param.alignment.velErrD];
 end
 
 % Define position state errors
-if (gps_alignment == 1)
+if (gps_alignment == 1) && param.fusion.enable
     Sigma_position = gps_data.pos_error(gps_data.start_index) * [1;1;0] + [0;0;param.alignment.hgtErr];
 else
     Sigma_position = [param.alignment.posErrNE;param.alignment.posErrNE;param.alignment.hgtErr];

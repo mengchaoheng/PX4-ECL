@@ -66,7 +66,7 @@ output = struct('time_lapsed',[]',...
     'magFuseMethod',[]);
 
 % initialise the state covariance matrix
-covariance = InitCovariance(param,dt_imu_avg,1,gps_data);
+covariance = InitCovariance(param,dt_imu_avg,0,gps_data);
 
 %% Main Loop
 
@@ -115,7 +115,7 @@ for index = indexStart:indexStop
     imuIndex = imuIndex+1;
     
     % predict states
-    [states, delAngCorrected, delVelCorrected]  = PredictStates(states,delta_angle,delta_velocity,imu_data.accel_dt(imuIndex),gravity,gps_data.refLLH(1,1)*deg2rad);
+    [states, delAngCorrected, delVelCorrected]  = PredictStates(states,delta_angle,delta_velocity,imu_data.accel_dt(imuIndex),gravity,113.351467*deg2rad); %gps_data.refLLH(1,1)
     
     % constrain states
     [states]  = ConstrainStates(states,dt_imu_avg);
@@ -156,8 +156,11 @@ for index = indexStart:indexStop
         end
         
         % Get most recent GPS data that had fallen behind the fusion time horizon
-        latest_gps_index = find((gps_data.time_us - 1e6 * param.fusion.gpsTimeDelay) < imu_data.time_us(imuIndex), 1, 'last' );
-        
+        if param.fusion.enable
+            latest_gps_index = find((gps_data.time_us - 1e6 * param.fusion.gpsTimeDelay) < imu_data.time_us(imuIndex), 1, 'last' );
+        else
+            latest_gps_index = '';
+        end
         if ~isempty(latest_gps_index)
             % Check if GPS use is being blocked by the user
             if ((local_time < param.control.gpsOnTime) && (local_time > param.control.gpsOffTime))

@@ -7,7 +7,7 @@ deg2rad = pi/180;
 states = zeros(24,1);
 quat = [1;0;0;0];
 
-if (param.control.waitForGps == 1)
+if (param.control.waitForGps == 1) && param.fusion.enable
     % find IMU start index that coresponds to first valid GPS data
     imu_start_index = (find(imu_data.time_us > gps_data.time_us(gps_data.start_index), 1, 'first' ) - 50);
     imu_start_index = max(imu_start_index,1);
@@ -46,7 +46,7 @@ states(1:4) = quat;
 Tbn = Quat2Tbn(quat);
 states(17:19) = Tbn*magBody;
 
-if (param.control.waitForGps == 1)
+if (param.control.waitForGps == 1) && param.fusion.enable
     % initialise velocity and position using gps
     states(5:7) = gps_data.vel_ned(gps_data.start_index,:);
     states(8:9) = gps_data.pos_ned(gps_data.start_index,1:2);

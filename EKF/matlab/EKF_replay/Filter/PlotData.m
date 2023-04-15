@@ -1,4 +1,4 @@
-function PlotData(output,folder,runIdentifier)
+function PlotData(output,folder,runIdentifier,enable)
 rad2deg = 180/pi;
 if ~exist(folder,'dir')
     mkdir(folder);
@@ -67,6 +67,7 @@ fullFileName = fullfile(folder, fileName);
 saveas(h,fullFileName);
 
 %% plot NED velocity estimates
+if enable
 figure('Units','Pixels','Position',plotDimensions,'PaperOrientation','portrait');
 h=gcf;
 set(h,'PaperOrientation','portrait');
@@ -548,4 +549,5 @@ if isfield(output.innovations,'bodyVelInnov')
     fullFileName = fullfile(folder, fileName);
     saveas(h,fullFileName);
     
+end
 end
