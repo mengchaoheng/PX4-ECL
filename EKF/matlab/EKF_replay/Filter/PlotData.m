@@ -5,8 +5,10 @@ if ~exist(folder,'dir')
 end
 plotDimensions = [0 0 210*3 297*3];
 
-
+have_ecl_data=exist("../TestData/PX4/ecl.mat","file");
+if have_ecl_data
 load '../TestData/PX4/ecl.mat';
+end
 %% plot Euler angle estimates
 figure('Units','Pixels','Position',plotDimensions,'PaperOrientation','portrait');
 h=gcf;
@@ -17,8 +19,10 @@ set(h,'PaperPosition', [0 0 1 1]);
 margin = 5;
 
 subplot(3,1,1);
+if have_ecl_data
 plot((vehicle_attitude(start:end,1))*1e-6, Roll(start:end)*r2d,'k:.','LineWidth',1);hold on;
 plot(time*1e-6, ekf3_Roll*r2d,'r--','LineWidth',1);hold on;
+end
 plot(output.time_lapsed,[output.euler_angles(:,1)*rad2deg,output.euler_angles(:,1)*rad2deg-2*sqrt(output.euler_variances(:,1)*rad2deg),output.euler_angles(:,1)*rad2deg+2*sqrt(output.euler_variances(:,1)*rad2deg)]);
 minVal = rad2deg*min(output.euler_angles(:,1))-margin;
 maxVal = rad2deg*max(output.euler_angles(:,1))+margin;
@@ -31,8 +35,10 @@ xlabel('time (sec)');
 legend('online','offline','estimate','upper 95% bound','lower 95% bound');
 
 subplot(3,1,2);
+if have_ecl_data
 plot((vehicle_attitude(start:end,1))*1e-6, Pitch(start:end)*r2d,'k:.','LineWidth',1);hold on;
 plot(time*1e-6, ekf3_Pitch*r2d,'r--','LineWidth',1);hold on;
+end
 plot(output.time_lapsed,[output.euler_angles(:,2)*rad2deg,output.euler_angles(:,2)*rad2deg-2*sqrt(output.euler_variances(:,2)*rad2deg),output.euler_angles(:,2)*rad2deg+2*sqrt(output.euler_variances(:,2)*rad2deg)]);
 minVal = rad2deg*min(output.euler_angles(:,2))-margin;
 maxVal = rad2deg*max(output.euler_angles(:,2))+margin;
@@ -43,8 +49,10 @@ xlabel('time (sec)');
 legend('online','offline','estimate','upper 95% bound','lower 95% bound');
 
 subplot(3,1,3);
+if have_ecl_data
 plot((vehicle_attitude(start:end,1))*1e-6, Yaw(start:end)*r2d,'k:.','LineWidth',1);hold on;
 plot(time*1e-6, ekf3_Yaw*r2d,'r--','LineWidth',1);hold on;
+end
 plot(output.time_lapsed,[output.euler_angles(:,3)*rad2deg,output.euler_angles(:,3)*rad2deg-2*sqrt(output.euler_variances(:,3)*rad2deg),output.euler_angles(:,3)*rad2deg+2*sqrt(output.euler_variances(:,3)*rad2deg)]);
 minVal = rad2deg*min(output.euler_angles(:,3))-margin;
 maxVal = rad2deg*max(output.euler_angles(:,3))+margin;
@@ -66,8 +74,10 @@ set(h,'PaperUnits','normalized');
 set(h,'PaperPosition', [0 0 1 1]);
 
 subplot(3,1,1);
+if have_ecl_data
 plot((vehicle_local_position(start:end,1))*1e-6, V_xyz(start:end,1),'k:.','LineWidth',1);hold on;
 plot(time*1e-6, ekf3_V_xyz(:,1),'r--','LineWidth',1);hold on;
+end
 plot(output.time_lapsed,[output.velocity_NED(:,1),output.velocity_NED(:,1)+2*sqrt(output.state_variances(:,5)),output.velocity_NED(:,1)-2*sqrt(output.state_variances(:,5))]);
 grid on;
 titleText=strcat({'NED Velocity Estimates'},runIdentifier);
@@ -77,8 +87,10 @@ xlabel('time (sec)');
 legend('online','offline','estimate','upper 95% bound','lower 95% bound');
 
 subplot(3,1,2);
+if have_ecl_data
 plot((vehicle_local_position(start:end,1))*1e-6, V_xyz(start:end,2),'k:.','LineWidth',1);hold on;
 plot(time*1e-6, ekf3_V_xyz(:,2),'r--','LineWidth',1);hold on;
+end
 plot(output.time_lapsed,[output.velocity_NED(:,2),output.velocity_NED(:,2)+2*sqrt(output.state_variances(:,6)),output.velocity_NED(:,2)-2*sqrt(output.state_variances(:,6))]);
 grid on;
 ylabel('East (m/s)');
@@ -86,8 +98,10 @@ xlabel('time (sec)');
 legend('online','offline','estimate','upper 95% bound','lower 95% bound');
 
 subplot(3,1,3);
+if have_ecl_data
 plot((vehicle_local_position(start:end,1))*1e-6, V_xyz(start:end,3),'k:.','LineWidth',1);hold on;
 plot(time*1e-6, ekf3_V_xyz(:,3),'r--','LineWidth',1);hold on;
+end
 plot(output.time_lapsed,[output.velocity_NED(:,3),output.velocity_NED(:,3)+2*sqrt(output.state_variances(:,7)),output.velocity_NED(:,3)-2*sqrt(output.state_variances(:,7))]);
 grid on;
 ylabel('Down (m/s)');
@@ -106,8 +120,10 @@ set(h,'PaperUnits','normalized');
 set(h,'PaperPosition', [0 0 1 1]);
 
 subplot(3,1,1);
+if have_ecl_data
 plot((vehicle_local_position(start:end,1))*1e-6, XYZ(start:end,1),'k:.','LineWidth',1);hold on;
 plot(time*1e-6, ekf3_XYZ(:,1),'r--','LineWidth',1);hold on;
+end
 plot(output.time_lapsed,[output.position_NED(:,1),output.position_NED(:,1)+2*sqrt(output.state_variances(:,8)),output.position_NED(:,1)-2*sqrt(output.state_variances(:,8))]);
 grid on;
 titleText=strcat({'NED Position Estimates'},runIdentifier);
@@ -117,8 +133,10 @@ xlabel('time (sec)');
 legend('online','offline','estimate','upper 95% bound','lower 95% bound');
 
 subplot(3,1,2);
+if have_ecl_data
 plot((vehicle_local_position(start:end,1))*1e-6, XYZ(start:end,2),'k:.','LineWidth',1);hold on;
 plot(time*1e-6, ekf3_XYZ(:,2),'r--','LineWidth',1);hold on;
+end
 plot(output.time_lapsed,[output.position_NED(:,2),output.position_NED(:,2)+2*sqrt(output.state_variances(:,9)),output.position_NED(:,2)-2*sqrt(output.state_variances(:,9))]);
 grid on;
 ylabel('East (m)');
@@ -126,8 +144,10 @@ xlabel('time (sec)');
 legend('online','offline','estimate','upper 95% bound','lower 95% bound');
 
 subplot(3,1,3);
+if have_ecl_data
 plot((vehicle_local_position(start:end,1))*1e-6, XYZ(start:end,3)-488,'k:.','LineWidth',1);hold on;
 plot(time*1e-6, ekf3_XYZ(:,3)-488,'r--','LineWidth',1);hold on;
+end
 plot(output.time_lapsed,[output.position_NED(:,3),output.position_NED(:,3)+2*sqrt(output.state_variances(:,10)),output.position_NED(:,3)-2*sqrt(output.state_variances(:,10))]);
 grid on;
 ylabel('Down (m)');
