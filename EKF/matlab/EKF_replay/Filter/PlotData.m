@@ -26,13 +26,13 @@ end
 plot(output.time_lapsed,[output.euler_angles(:,1)*rad2deg,output.euler_angles(:,1)*rad2deg-2*sqrt(output.euler_variances(:,1)*rad2deg),output.euler_angles(:,1)*rad2deg+2*sqrt(output.euler_variances(:,1)*rad2deg)]);
 minVal = rad2deg*min(output.euler_angles(:,1))-margin;
 maxVal = rad2deg*max(output.euler_angles(:,1))+margin;
-ylim([minVal maxVal]);
+% ylim([minVal maxVal]);
 grid on;
 titleText=strcat({'Euler Angle Estimates'},runIdentifier);
 title(titleText);
 ylabel('Roll (deg)');
 xlabel('time (sec)');
-legend('online','offline','estimate','upper 95% bound','lower 95% bound');
+legend('online','offline','matlab estimate','upper 95% bound','lower 95% bound');
 
 subplot(3,1,2);
 if have_ecl_data
@@ -42,11 +42,11 @@ end
 plot(output.time_lapsed,[output.euler_angles(:,2)*rad2deg,output.euler_angles(:,2)*rad2deg-2*sqrt(output.euler_variances(:,2)*rad2deg),output.euler_angles(:,2)*rad2deg+2*sqrt(output.euler_variances(:,2)*rad2deg)]);
 minVal = rad2deg*min(output.euler_angles(:,2))-margin;
 maxVal = rad2deg*max(output.euler_angles(:,2))+margin;
-ylim([minVal maxVal]);
+% ylim([minVal maxVal]);
 grid on;
 ylabel('Pitch (deg)');
 xlabel('time (sec)');
-legend('online','offline','estimate','upper 95% bound','lower 95% bound');
+legend('online','offline','matlab estimate','upper 95% bound','lower 95% bound');
 
 subplot(3,1,3);
 if have_ecl_data
@@ -56,11 +56,11 @@ end
 plot(output.time_lapsed,[output.euler_angles(:,3)*rad2deg,output.euler_angles(:,3)*rad2deg-2*sqrt(output.euler_variances(:,3)*rad2deg),output.euler_angles(:,3)*rad2deg+2*sqrt(output.euler_variances(:,3)*rad2deg)]);
 minVal = rad2deg*min(output.euler_angles(:,3))-margin;
 maxVal = rad2deg*max(output.euler_angles(:,3))+margin;
-ylim([minVal maxVal]);
+% ylim([minVal maxVal]);
 grid on;
 ylabel('Yaw (deg)');
 xlabel('time (sec)');
-legend('online','offline','estimate','upper 95% bound','lower 95% bound');
+legend('online','offline','matlab estimate','upper 95% bound','lower 95% bound');
 
 fileName='euler_angle_estimates.png';
 fullFileName = fullfile(folder, fileName);
@@ -85,7 +85,7 @@ titleText=strcat({'NED Velocity Estimates'},runIdentifier);
 title(titleText);
 ylabel('North (m/s)');
 xlabel('time (sec)');
-legend('online','offline','estimate','upper 95% bound','lower 95% bound');
+legend('online','offline','matlab estimate','upper 95% bound','lower 95% bound');
 
 subplot(3,1,2);
 if have_ecl_data
@@ -96,7 +96,7 @@ plot(output.time_lapsed,[output.velocity_NED(:,2),output.velocity_NED(:,2)+2*sqr
 grid on;
 ylabel('East (m/s)');
 xlabel('time (sec)');
-legend('online','offline','estimate','upper 95% bound','lower 95% bound');
+legend('online','offline','matlab estimate','upper 95% bound','lower 95% bound');
 
 subplot(3,1,3);
 if have_ecl_data
@@ -107,7 +107,7 @@ plot(output.time_lapsed,[output.velocity_NED(:,3),output.velocity_NED(:,3)+2*sqr
 grid on;
 ylabel('Down (m/s)');
 xlabel('time (sec)');
-legend('online','offline','estimate','upper 95% bound','lower 95% bound');
+legend('online','offline','matlab estimate','upper 95% bound','lower 95% bound');
 
 fileName='velocity_estimates.png';
 fullFileName = fullfile(folder, fileName);
@@ -131,7 +131,7 @@ titleText=strcat({'NED Position Estimates'},runIdentifier);
 title(titleText);
 ylabel('North (m)');
 xlabel('time (sec)');
-legend('online','offline','estimate','upper 95% bound','lower 95% bound');
+legend('online','offline','matlab estimate','upper 95% bound','lower 95% bound');
 
 subplot(3,1,2);
 if have_ecl_data
@@ -142,7 +142,7 @@ plot(output.time_lapsed,[output.position_NED(:,2),output.position_NED(:,2)+2*sqr
 grid on;
 ylabel('East (m)');
 xlabel('time (sec)');
-legend('online','offline','estimate','upper 95% bound','lower 95% bound');
+legend('online','offline','matlab estimate','upper 95% bound','lower 95% bound');
 
 subplot(3,1,3);
 if have_ecl_data
@@ -153,7 +153,7 @@ plot(output.time_lapsed,[output.position_NED(:,3),output.position_NED(:,3)+2*sqr
 grid on;
 ylabel('Down (m)');
 xlabel('time (sec)');
-legend('online','offline','estimate','upper 95% bound','lower 95% bound');
+legend('online','offline','matlab estimate','upper 95% bound','lower 95% bound');
 
 fileName='position_estimates.png';
 fullFileName = fullfile(folder, fileName);
@@ -178,7 +178,7 @@ titleText=strcat({'IMU Gyro Bias Estimates'},runIdentifier);
 title(titleText);
 ylabel('X gyro (deg/s)');
 xlabel('time (sec)');
-legend('estimate','upper 95% bound','lower 95% bound');
+legend('matlab estimate','upper 95% bound','lower 95% bound');
 
 subplot(3,1,2);
 plot(output.time_lapsed,(1/output.dt)*[output.gyro_bias(:,2),output.gyro_bias(:,2)+2*sqrt(output.state_variances(:,12)),output.gyro_bias(:,2)-2*sqrt(output.state_variances(:,12))]*rad2deg);
@@ -188,7 +188,7 @@ ylim([minVal maxVal]);
 grid on;
 ylabel('Y gyro (deg/s)');
 xlabel('time (sec)');
-legend('estimate','upper 95% bound','lower 95% bound');
+legend('matlab estimate','upper 95% bound','lower 95% bound');
 
 subplot(3,1,3);
 plot(output.time_lapsed,(1/output.dt)*[output.gyro_bias(:,3),output.gyro_bias(:,3)+2*sqrt(output.state_variances(:,13)),output.gyro_bias(:,3)-2*sqrt(output.state_variances(:,13))]*rad2deg);
@@ -198,7 +198,7 @@ ylim([minVal maxVal]);
 grid on;
 ylabel('Z gyro (deg/s)');
 xlabel('time (sec)');
-legend('estimate','upper 95% bound','lower 95% bound');
+legend('matlab estimate','upper 95% bound','lower 95% bound');
 
 fileName='imu_gyro_bias_estimates.png';
 fullFileName = fullfile(folder, fileName);
@@ -223,7 +223,7 @@ ylim([minVal maxVal]);
 grid on;
 ylabel('X accel (m/s/s)');
 xlabel('time (sec)');
-legend('estimate','upper 95% bound','lower 95% bound');
+legend('matlab estimate','upper 95% bound','lower 95% bound');
 
 subplot(3,1,2);
 plot(output.time_lapsed,(1/output.dt)*[output.accel_bias(:,2),output.accel_bias(:,2)+2*sqrt(output.state_variances(:,15)),output.accel_bias(:,2)-2*sqrt(output.state_variances(:,15))]);
@@ -233,7 +233,7 @@ ylim([minVal maxVal]);
 grid on;
 ylabel('Y accel (m/s/s)');
 xlabel('time (sec)');
-legend('estimate','upper 95% bound','lower 95% bound');
+legend('matlab estimate','upper 95% bound','lower 95% bound');
 
 subplot(3,1,3);
 plot(output.time_lapsed,(1/output.dt)*[output.accel_bias(:,3),output.accel_bias(:,3)+2*sqrt(output.state_variances(:,16)),output.accel_bias(:,3)-2*sqrt(output.state_variances(:,16))]);
@@ -243,7 +243,7 @@ ylim([minVal maxVal]);
 grid on;
 ylabel('Z accel (m/s/s)');
 xlabel('time (sec)');
-legend('estimate','upper 95% bound','lower 95% bound');
+legend('matlab estimate','upper 95% bound','lower 95% bound');
 
 fileName='imu_accel_bias_estimates.png';
 fullFileName = fullfile(folder, fileName);
@@ -264,21 +264,21 @@ if (output.magFuseMethod <= 1)
     title(titleText);
     ylabel('X bias (gauss)');
     xlabel('time (sec)');
-    legend('estimate','upper 95% bound','lower 95% bound');
+    legend('matlab estimate','upper 95% bound','lower 95% bound');
     
     subplot(3,1,2);
     plot(output.time_lapsed',[output.mag_XYZ(:,2),output.mag_XYZ(:,2)+2*sqrt(output.state_variances(:,21)),output.mag_XYZ(:,2)-2*sqrt(output.state_variances(:,21))]);
     grid on;
     ylabel('Y bias (gauss)');
     xlabel('time (sec)');
-    legend('estimate','upper 95% bound','lower 95% bound');
+    legend('matlab estimate','upper 95% bound','lower 95% bound');
     
     subplot(3,1,3);
     plot(output.time_lapsed',[output.mag_XYZ(:,3),output.mag_XYZ(:,3)+2*sqrt(output.state_variances(:,22)),output.mag_XYZ(:,3)-2*sqrt(output.state_variances(:,22))]);
     grid on;
     ylabel('Z bias (gauss)');
     xlabel('time (sec)');
-    legend('estimate','upper 95% bound','lower 95% bound');
+    legend('matlab estimate','upper 95% bound','lower 95% bound');
     
     fileName='body_field_estimates.png';
     fullFileName = fullfile(folder, fileName);
@@ -305,7 +305,7 @@ if (output.magFuseMethod <= 1)
     title(titleText);
     ylabel('North (gauss)');
     xlabel('time (sec)');
-    legend('estimate','upper 95% bound','lower 95% bound');
+    legend('matlab estimate','upper 95% bound','lower 95% bound');
     
     subplot(4,1,2);
     plot(output.time_lapsed',[output.mag_NED(:,2),output.mag_NED(:,2)+2*sqrt(output.state_variances(:,18)),output.mag_NED(:,2)-2*sqrt(output.state_variances(:,18))]);
@@ -315,7 +315,7 @@ if (output.magFuseMethod <= 1)
     grid on;
     ylabel('East (gauss)');
     xlabel('time (sec)');
-    legend('estimate','upper 95% bound','lower 95% bound');
+    legend('matlab estimate','upper 95% bound','lower 95% bound');
     
     subplot(4,1,3);
     plot(output.time_lapsed',[output.mag_NED(:,3),output.mag_NED(:,3)+2*sqrt(output.state_variances(:,19)),output.mag_NED(:,3)-2*sqrt(output.state_variances(:,19))]);
@@ -325,7 +325,7 @@ if (output.magFuseMethod <= 1)
     ylim([minVal maxVal]);
     ylabel('Down (gauss)');
     xlabel('time (sec)');
-    legend('estimate','upper 95% bound','lower 95% bound');
+    legend('matlab estimate','upper 95% bound','lower 95% bound');
     
     subplot(4,1,4);
     plot(output.time_lapsed',rad2deg*atan2(output.mag_NED(:,2),output.mag_NED(:,1)));
