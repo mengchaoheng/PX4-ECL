@@ -19,3 +19,4 @@ compile_commands.json
 matrix-prefix/
 rules.ninja
 EKF/matlab/EKF_replay/OutputPlots/PX4/
+EKF/matlab/EKF_replay/OutputData/PX4/
