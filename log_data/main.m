@@ -26,7 +26,7 @@ addpath(genpath(pwd));
 d2r=pi/180;
 r2d=180/pi;
 %% two offline can be use, something different. px4 v12.3.0
-ulgFileName = 'log001'; % the ulog file name  17_48_41
+ulgFileName = '17_48_41'; % the ulog file name  17_48_41
 tmp=[ ulgFileName '.mat'];
 % exist tmp var
 if exist(tmp,"file")
@@ -52,7 +52,7 @@ else
     % copy data to ecl, and then 
     delete(['*' ulgFileName '*.csv'])
 end
-
+delete('../csv_data/*.csv');
 % go to run ekf3 and copy results file to cover that of this proj
 % cd to build and run `make && ./main/postEcl`
 % then continue.

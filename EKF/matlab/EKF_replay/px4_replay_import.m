@@ -2,11 +2,12 @@ clear all;
 close all;
 %% PX4 replay: import sensors CSV
 % the following variables must be set beforehand!
-sensors_file = '../../../csv_data/log001_sensor_combined_0';
-air_data_file = '../../../csv_data/log001_vehicle_air_data_0';
-magnetometer_file = '../../../csv_data/log001_vehicle_magnetometer_0';
+% run gen_csv_from_ulg before
+sensors_file = '../../../csv_data/17_48_41_sensor_combined_0';
+air_data_file = '../../../csv_data/17_48_41_vehicle_air_data_0';
+magnetometer_file = '../../../csv_data/17_48_41_vehicle_magnetometer_0';
 % or don't use it
-% gps_file = '../../../csv_data/log001_vehicle_gps_position_0';
+% gps_file = '../../../csv_data/17_48_41_vehicle_gps_position_0';
 if ~exist('sensors_file','var')
     error('sensors_file missing');
 end
@@ -393,3 +394,4 @@ convert_px4_actuators_csv_data;
 cd ../;
 
 end
+delete('../../../csv_data/*.csv');
