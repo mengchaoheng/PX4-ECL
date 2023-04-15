@@ -87,7 +87,7 @@ magnetometer_file = '../../../csv_data/17_48_41_vehicle_magnetometer_0';
 
 2. cd to `PX4-ECL/EKF/matlab/EKF_replay/Filter` and run `replay_px4_data.m`.
 
-<img src="./EKF/matlab/EKF_replay/OutputPlots/rpy.png" width="70%" height="70%" />
+<img src="./EKF/matlab/EKF_replay/OutputPlots/rpy.png" width="100%" height="100%" />
 ### Change Indicator / Unit Tests
 Change indication is the concept of running the EKF on different data-sets and compare the state of the EKF to a previous version. If a contributor makes a functional change that is run during the change_indication tests, this will produce a different output of the EKF's state. As the tests are run in CI, this checks if a contributor forgot to run the checks themselves and add the [new EKF's state outputs](https://github.com/PX4/ecl/blob/master/test/change_indication/iris_gps.csv) to the pull request.
 
