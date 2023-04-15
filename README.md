@@ -68,11 +68,11 @@ The offline version of ecl makes it easier to port to other platforms. You only 
 
 The following is a comparison between the online version of ekf and the offline version of ekf:
 
-<img src="./log_data/RPY.png" width="50%" height="50%" />
+<img src="./log_data/RPY.png" width="70%" height="70%" />
 
-<img src="./log_data/pos.png" width="50%" height="50%" />
+<img src="./log_data/pos.png" width="70%" height="70%" />
 
-<img src="./log_data/vel.png" width="50%" height="50%" />
+<img src="./log_data/vel.png" width="70%" height="70%" />
 
 ## matlab replay
 1. cd to `PX4-ECL/EKF/matlab/EKF_replay` and run `px4_replay_import.m` , you need to run gen_csv_from_ulg before and decide use gps data or not. The name of files need to be change. This step will generate `*_data.mat` file which used in replay.
