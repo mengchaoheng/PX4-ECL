@@ -7,7 +7,7 @@
 build/
 results/
 csv_data/
-
+*/*.asv
 */*.a
 .ninja_deps
 .ninja_log

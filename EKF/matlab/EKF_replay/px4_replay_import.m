@@ -1,5 +1,9 @@
 %% PX4 replay: import sensors CSV
 % the following variables must be set beforehand!
+sensors_file = '17_48_41_sensor_combined_0';
+air_data_file = '17_48_41_vehicle_air_data_0';
+magnetometer_file = '17_48_41_vehicle_magnetometer_0';
+gps_file = '17_48_41_vehicle_gps_position_0';
 if ~exist('sensors_file','var')
     error('sensors_file missing');
 end
@@ -66,8 +70,8 @@ opts.DataLines = [2, Inf];
 opts.Delimiter = ",";
 
 % Specify column names and types
-opts.VariableNames = ["timestamp_baro", "baro_alt_meter", "baro_temp_celcius", "baro_pressure_pa", "rho"];
-opts.VariableTypes = ["double", "double", "double", "double", "double"];
+opts.VariableNames = ["timestamp_baro","timestamp_sample","baro_device_id","baro_alt_meter", "baro_temp_celcius", "baro_pressure_pa", "rho"];
+opts.VariableTypes = ["double", "double", "double", "double", "double", "double", "double"];
 opts.ExtraColumnsRule = "ignore";
 opts.EmptyLineRule = "read";
 
@@ -89,8 +93,8 @@ opts.DataLines = [2, Inf];
 opts.Delimiter = ",";
 
 % Specify column names and types
-opts.VariableNames = ["timestamp_mag", "magnetometer_ga0", "magnetometer_ga1", "magnetometer_ga2"];
-opts.VariableTypes = ["double", "double", "double", "double"];
+opts.VariableNames = ["timestamp_mag", "timestamp_sample","device_id","magnetometer_ga0", "magnetometer_ga1", "magnetometer_ga2"];
+opts.VariableTypes = ["double", "double","double","double", "double", "double"];
 opts.ExtraColumnsRule = "ignore";
 opts.EmptyLineRule = "read";
 
@@ -119,8 +123,8 @@ opts.DataLines = [2, Inf];
 opts.Delimiter = ",";
 
 % Specify column names and types
-opts.VariableNames = ["timestamp", "time_utc_usec", "lat", "lon", "alt", "alt_ellipsoid", "s_variance_m_s", "c_variance_rad", "eph", "epv", "hdop", "vdop", "noise_per_ms", "jamming_indicator", "vel_m_s", "vel_n_m_s", "vel_e_m_s", "vel_d_m_s", "cog_rad", "timestamp_time_relative", "heading", "heading_offset", "fix_type", "vel_ned_valid", "satellites_used"];
-opts.VariableTypes = ["double", "double", "double", "double", "double", "double", "double", "double", "double", "double", "double", "double", "double", "double", "double", "double", "double", "double", "double", "double", "double", "double", "double", "double", "double"];
+opts.VariableNames = ["timestamp", "time_utc_usec", "lat", "lon", "alt", "alt_ellipsoid", "s_variance_m_s", "c_variance_rad", "eph", "epv", "hdop", "vdop", "noise_per_ms", "jamming_indicator", "vel_m_s", "vel_n_m_s", "vel_e_m_s", "vel_d_m_s", "cog_rad", "timestamp_time_relative", "heading", "heading_offset", "fix_type", "jamming_state","vel_ned_valid", "satellites_used"];
+opts.VariableTypes = ["double", "double", "double", "double", "double", "double", "double", "double", "double", "double", "double", "double", "double", "double", "double", "double", "double", "double", "double", "double", "double", "double", "double", "double", "double", "double"];
 opts.ExtraColumnsRule = "ignore";
 opts.EmptyLineRule = "read";
 

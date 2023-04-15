@@ -42,6 +42,6 @@ end
 %% save data
 % DO NOT clear the workspace (yet)
 
-save baro_data.mat baro_data;
-save imu_data.mat imu_data;
-save mag_data.mat mag_data;
+save ../TestData/PX4/baro_data.mat baro_data;
+save ../TestData/PX4/imu_data.mat imu_data;
+save ../TestData/PX4/mag_data.mat mag_data;

@@ -93,10 +93,13 @@ ekf3_XYZ = ECL.data(:,9:11);
 ekf3_V_xyz = ECL.data(:,6:8);
 
 start=1;
+
+save ../EKF/matlab/EKF_replay/TestData/PX4/ecl.mat
+
 %% and maybe more figure, all in the variable "log.data"
-fig1=figure;
+fig1=figure(1);
 subplot(3,1,1);
-plot((vehicle_attitude(start:end,1))*1e-6, Roll(start:end)*r2d,'k-','LineWidth',1);hold on;
+plot((vehicle_attitude(start:end,1))*1e-6, Roll(start:end)*r2d,'k:.','LineWidth',1);hold on;
 plot(time*1e-6, ekf3_Roll*r2d,'r--','LineWidth',1);hold on;
 grid on;
 % axis([-inf inf -100 100]);
@@ -108,7 +111,7 @@ legend('online','offline');%legend('boxoff');
 %% and maybe more figure, all in the variable "log.data"
 % figure,
 subplot(3,1,2);
-plot((vehicle_attitude(start:end,1))*1e-6, Pitch(start:end)*r2d,'k-','LineWidth',1);hold on;
+plot((vehicle_attitude(start:end,1))*1e-6, Pitch(start:end)*r2d,'k:.','LineWidth',1);hold on;
 plot(time*1e-6, ekf3_Pitch*r2d,'r--','LineWidth',1);hold on;
 grid on;
 % axis([-inf inf -100 100]);
@@ -131,7 +134,7 @@ legend('online','offline');%legend('boxoff');
 %% 
 PlotToFileColorPDF(fig1,'../results/RPY.pdf',10,15); % or 'RPY.pdf'
 %% and maybe more figure, all in the variable "log.data"
-fig2=figure;
+fig2=figure(2);
 subplot(3,1,1);
 plot((vehicle_local_position(start:end,1))*1e-6, XYZ(start:end,1),'k-','LineWidth',1);hold on;
 plot(time*1e-6, ekf3_XYZ(:,1),'r--','LineWidth',1);hold on;
@@ -168,7 +171,7 @@ legend('online','offline');%legend('boxoff');
 PlotToFileColorPDF(fig2,'../results/pos.pdf',10,15);% or 'pos.pdf'
 
 %% and maybe more figure, all in the variable "log.data"
-fig3=figure;
+fig3=figure(3);
 subplot(3,1,1);
 plot((vehicle_local_position(start:end,1))*1e-6, V_xyz(start:end,1),'k-','LineWidth',1);hold on;
 plot(time*1e-6, ekf3_V_xyz(:,1),'r--','LineWidth',1);hold on;
@@ -207,3 +210,4 @@ legend('online','offline');%legend('boxoff');
 
 %% 
 PlotToFileColorEPS(fig3,'../results/vel.pdf',10,15);% or 'vel.pdf'
+

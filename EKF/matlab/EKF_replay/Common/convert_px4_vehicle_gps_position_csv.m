@@ -29,4 +29,4 @@ end
 %% save data
 % DO NOT clear the workspace (yet)
 
-save gps_data.mat gps_data;
+save ../TestData/PX4/gps_data.mat gps_data;
