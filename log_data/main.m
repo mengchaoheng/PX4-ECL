@@ -26,7 +26,7 @@ addpath(genpath(pwd));
 d2r=pi/180;
 r2d=180/pi;
 %% two offline can be use, something different. px4 v12.3.0
-ulgFileName = 'log002'; % the ulog file name  17_48_41
+ulgFileName = 'log008'; % the ulog file name  17_48_41
 tmp=[ ulgFileName '.mat'];
 % exist tmp var
 if exist(tmp,"file")
@@ -66,10 +66,15 @@ q_0=vehicle_attitude(:,3);
 q_1=vehicle_attitude(:,4);
 q_2=vehicle_attitude(:,5);
 q_3=vehicle_attitude(:,6);
-Roll=quat_to_roll(q_0,q_1,q_2,q_3);
-Pitch=quat_to_pitch(q_0,q_1,q_2,q_3);
-Yaw=quat_to_yaw(q_0,q_1,q_2,q_3);
-
+Roll=quat_to_roll([q_0 q_1 q_2 q_3]);
+Pitch=quat_to_pitch([q_0 q_1 q_2 q_3]);
+Yaw=quat_to_yaw([q_0 q_1 q_2 q_3]);
+%%
+have_opti_data=exist("opti.mat","file");
+if have_opti_data
+load 'opti.mat';
+end
+%%
 
 % use txt, high log rate.
 % euler_estimator=load('../results/euler_estimator.txt');
@@ -100,72 +105,115 @@ save ../EKF/matlab/EKF_replay/TestData/PX4/ecl.mat
 fig1=figure(1);
 subplot(3,1,1);
 plot((vehicle_attitude(start:end,1))*1e-6, Roll(start:end)*r2d,'k:.','LineWidth',1);hold on;
-plot(time*1e-6, ekf3_Roll*r2d,'r--','LineWidth',1);hold on;
+plot(time*1e-6, ekf3_Roll*r2d,'r-','LineWidth',1);hold on;
+if have_opti_data
+    plot(opti_time_s+6-0.1844,-opti_uav_Roll*r2d-1.24767-3.11,'b--','LineWidth',1);hold on;
+end
 grid on;
 % axis([-inf inf -100 100]);
 xlabel({'Time(s)'});
-ylabel('Angular (deg)')
-title('Roll');
-legend('online','offline');%legend('boxoff');
+ylabel('Roll (deg)')
+title('Euler Angle Estimates');
+if have_opti_data
+    legend('PX4','offline','optitrack');
+else
+    legend('PX4','offline');%legend('boxoff');
+end
 
 %% and maybe more figure, all in the variable "log.data"
 % figure,
 subplot(3,1,2);
 plot((vehicle_attitude(start:end,1))*1e-6, Pitch(start:end)*r2d,'k:.','LineWidth',1);hold on;
-plot(time*1e-6, ekf3_Pitch*r2d,'r--','LineWidth',1);hold on;
+plot(time*1e-6, ekf3_Pitch*r2d,'r-','LineWidth',1);hold on;
+if have_opti_data
+    plot(opti_time_s+6-0.1844,-opti_uav_Pitch*r2d-4.1221+1.13,'b--','LineWidth',1);hold on;
+end
 grid on;
 % axis([-inf inf -100 100]);
 xlabel({'Time(s)'});
-ylabel('Angular (deg)')
-title('Pitch');
-legend('online','offline');%legend('boxoff');
+ylabel('Pitch (deg)')
+% title('Pitch');
+if have_opti_data
+    legend('PX4','offline','optitrack');
+else
+    legend('PX4','offline');%legend('boxoff');
+end
 %% and maybe more figure, all in the variable "log.data"
 % figure,
 subplot(3,1,3);
 plot((vehicle_attitude(start:end,1))*1e-6, Yaw(start:end)*r2d,'k-','LineWidth',1);hold on;
-plot(time*1e-6, ekf3_Yaw*r2d,'r--','LineWidth',1);hold on;
+plot(time*1e-6, ekf3_Yaw*r2d,'r-','LineWidth',1);hold on;
+if have_opti_data
+    plot(opti_time_s+6-0.1844,opti_uav_Yaw*r2d-99,'b--','LineWidth',1);hold on;
+end
 grid on;
 % axis([-inf inf -100 100]);
 xlabel({'Time(s)'});
-ylabel('Angular (deg)')
-title('Yaw');
-legend('online','offline');%legend('boxoff');
+ylabel('Yaw (deg)')
+% title('Yaw');
+if have_opti_data
+    legend('PX4','offline','optitrack');
+else
+    legend('PX4','offline');%legend('boxoff');
+end
+
 
 %% 
-PlotToFileColorPDF(fig1,'../results/RPY.pdf',10,15); % or 'RPY.pdf'
+PlotToFileColorPDF(fig1,'../results/RPY.pdf',20,35); % or 'RPY.pdf'
 %% and maybe more figure, all in the variable "log.data"
 fig2=figure(2);
 subplot(3,1,1);
-plot((vehicle_local_position(start:end,1))*1e-6, XYZ(start:end,1),'k-','LineWidth',1);hold on;
-plot(time*1e-6, ekf3_XYZ(:,1),'r--','LineWidth',1);hold on;
+plot((vehicle_local_position(start:end,1))*1e-6, XYZ(start:end,1),'k:.','LineWidth',1);hold on;
+plot(time*1e-6, ekf3_XYZ(:,1),'r-','LineWidth',1);hold on;
+if have_opti_data
+    plot(opti_time_s+6-0.1844,opti_uav_pos(:,1)-opti_origin_pos(:,1),'b--','LineWidth',1);hold on;
+end
 grid on;
 % axis([-inf inf -100 100]);
 xlabel({'Time(s)'});
-ylabel('Position (m)')
-title('X');
-legend('online','offline');%legend('boxoff');
+ylabel('X (m)')
+title('Position Estimates');
+if have_opti_data
+    legend('PX4','offline','optitrack');
+else
+    legend('PX4','offline');%legend('boxoff');
+end
 
 %% and maybe more figure, all in the variable "log.data"
 % figure,
 subplot(3,1,2);
-plot((vehicle_local_position(start:end,1))*1e-6, XYZ(start:end,2),'k-','LineWidth',1);hold on;
+plot((vehicle_local_position(start:end,1))*1e-6, XYZ(start:end,2),'k:.','LineWidth',1);hold on;
 plot(time*1e-6, ekf3_XYZ(:,2),'r--','LineWidth',1);hold on;
+if have_opti_data
+    plot(opti_time_s+6-0.1844,opti_uav_pos(:,2)-opti_origin_pos(:,2),'b-','LineWidth',1);hold on;
+end
 grid on;
 % axis([-inf inf -100 100]);
 xlabel({'Time(s)'});
-ylabel('Position (m)')
-title('Y');
-legend('online','offline');%legend('boxoff');
+ylabel('Y (m)')
+% title('Y');
+if have_opti_data
+    legend('PX4','offline','optitrack');
+else
+    legend('PX4','offline');%legend('boxoff');
+end
 %% and maybe more figure, all in the variable "log.data"
 % figure,
 subplot(3,1,3);
-plot((vehicle_local_position(start:end,1))*1e-6, XYZ(start:end,3),'k-','LineWidth',1);hold on;
+plot((vehicle_local_position(start:end,1))*1e-6, XYZ(start:end,3),'k:.','LineWidth',1);hold on;
 plot(time*1e-6, ekf3_XYZ(:,3),'r--','LineWidth',1);hold on;
+if have_opti_data
+    plot(opti_time_s+6-0.1844,opti_uav_pos(:,3)-opti_origin_pos(:,3)+0.2,'b-','LineWidth',1);hold on;
+end
 grid on;
 % axis([-inf inf -100 100]);
-ylabel('Position (m)')
-title('Z');
-legend('online','offline');%legend('boxoff');
+ylabel('Z (m)')
+% title('Z');
+if have_opti_data
+    legend('PX4','offline','optitrack');
+else
+    legend('PX4','offline');%legend('boxoff');
+end
 
 %% 
 PlotToFileColorPDF(fig2,'../results/pos.pdf',10,15);% or 'pos.pdf'
@@ -179,9 +227,9 @@ plot(time*1e-6, ekf3_V_xyz(:,1),'r--','LineWidth',1);hold on;
 grid on;
 % axis([-inf inf -100 100]);
 xlabel({'Time(s)'});
-ylabel('velocity (m/s)')
-title('V_x');
-legend('online','offline');%legend('boxoff');
+ylabel('V_x (m/s)')
+title('velocity Estimates');
+legend('PX4','offline');%legend('boxoff');
 
 %% and maybe more figure, all in the variable "log.data"
 % figure,
@@ -192,9 +240,9 @@ plot(time*1e-6, ekf3_V_xyz(:,2),'r--','LineWidth',1);hold on;
 grid on;
 % axis([-inf inf -100 100]);
 xlabel({'Time(s)'});
-ylabel('velocity (m/s)')
-title('V_y');
-legend('online','offline');%legend('boxoff');
+ylabel('V_y (m/s)')
+% title('V_y');
+legend('PX4','offline');%legend('boxoff');
 %% and maybe more figure, all in the variable "log.data"
 % figure,
 subplot(3,1,3);
@@ -204,9 +252,9 @@ plot(time*1e-6, ekf3_V_xyz(:,3),'r--','LineWidth',1);hold on;
 grid on;
 % axis([-inf inf -100 100]);
 xlabel({'Time(s)'});
-ylabel('velocity (m/s)')
-title('V_z');
-legend('online','offline');%legend('boxoff');
+ylabel('V_z (m/s)')
+% title('V_z');
+legend('PX4','offline');%legend('boxoff');
 
 %% 
 PlotToFileColorEPS(fig3,'../results/vel.pdf',10,15);% or 'vel.pdf'
