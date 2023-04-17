@@ -178,7 +178,7 @@ end
 
 
 %% 
-PlotToFileColorPDF(fig1,'../results/RPY.pdf',20,35); % or 'RPY.pdf'
+PlotToFileColorPDF(fig1,'../results/RPY.pdf',15,20); % or 'RPY.pdf'
 %% and maybe more figure, all in the variable "log.data"
 fig2=figure(2);
 subplot(3,1,1);
@@ -235,7 +235,7 @@ else
 end
 
 %% 
-PlotToFileColorPDF(fig2,'../results/pos.pdf',10,15);% or 'pos.pdf'
+PlotToFileColorPDF(fig2,'../results/pos.pdf',15,20);% or 'pos.pdf'
 
 %% and maybe more figure, all in the variable "log.data"
 fig3=figure(3);
@@ -276,5 +276,5 @@ ylabel('V_z (m/s)')
 legend('PX4','offline');%legend('boxoff');
 
 %% 
-PlotToFileColorEPS(fig3,'../results/vel.pdf',10,15);% or 'vel.pdf'
+PlotToFileColorPDF(fig3,'../results/vel.pdf',15,20);% or 'vel.pdf'
 
