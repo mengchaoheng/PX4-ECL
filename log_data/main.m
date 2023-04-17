@@ -1,8 +1,9 @@
 clear all;
 close all;
 clc;
-format long g
+format long 
 addpath(genpath(pwd));
+addpath '/Users/mch/Proj/akstuki-PX4-ECL/PX4-ECL/EKF/matlab/EKF_replay/Common'
 % you can run on terminal 
 % ulog2csv log_8_2021-5-20-11-52-08.ulg 
 % to get csv files
@@ -26,7 +27,7 @@ addpath(genpath(pwd));
 d2r=pi/180;
 r2d=180/pi;
 %% two offline can be use, something different. px4 v12.3.0
-ulgFileName = 'log008'; % the ulog file name  17_48_41
+ulgFileName = 'log010'; % the ulog file name  17_48_41
 tmp=[ ulgFileName '.mat'];
 % exist tmp var
 if exist(tmp,"file")
@@ -73,7 +74,25 @@ Yaw=quat_to_yaw([q_0 q_1 q_2 q_3]);
 have_opti_data=exist("opti.mat","file");
 if have_opti_data
 load 'opti.mat';
+% data allocation, using q_init convert frame of opti to NED
+% Recreate the RigidBody before each flight to obtain a RigidBody frame 
+% aligned with the original coordinate system in the motion capture system.
+q_init=[q_0(1);q_1(1);q_2(1);q_3(1);];
+uav_q=zeros(length(opti_uav_q),4);
+uav_pos=zeros(length(opti_uav_q),3);
+Tbn = Quat2Tbn(q_init);
+% Then we use the attitude obtained when the aircraft is initialized to 
+% rotate the frame of the motion capture system, and finally align the NED frame.
+for i=1:length(opti_uav_q)
+    uav_q(i,:) = QuatMult(q_init,opti_uav_q(i,:)');
+    uav_pos(i,:)=(Tbn * opti_uav_pos(i,:)')';
 end
+uav_Roll=quat_to_roll(uav_q);
+uav_Pitch=quat_to_pitch(uav_q);
+uav_Yaw=quat_to_yaw(uav_q);
+
+end
+
 %%
 
 % use txt, high log rate.
@@ -107,7 +126,7 @@ subplot(3,1,1);
 plot((vehicle_attitude(start:end,1))*1e-6, Roll(start:end)*r2d,'k:.','LineWidth',1);hold on;
 plot(time*1e-6, ekf3_Roll*r2d,'r-','LineWidth',1);hold on;
 if have_opti_data
-    plot(opti_time_s+6-0.1844,-opti_uav_Roll*r2d-1.24767-3.11,'b--','LineWidth',1);hold on;
+    plot(opti_time_s+ 16.386,uav_Roll*r2d,'b--','LineWidth',1);hold on;
 end
 grid on;
 % axis([-inf inf -100 100]);
@@ -126,7 +145,7 @@ subplot(3,1,2);
 plot((vehicle_attitude(start:end,1))*1e-6, Pitch(start:end)*r2d,'k:.','LineWidth',1);hold on;
 plot(time*1e-6, ekf3_Pitch*r2d,'r-','LineWidth',1);hold on;
 if have_opti_data
-    plot(opti_time_s+6-0.1844,-opti_uav_Pitch*r2d-4.1221+1.13,'b--','LineWidth',1);hold on;
+    plot(opti_time_s+ 16.386,uav_Pitch*r2d,'b--','LineWidth',1);hold on;
 end
 grid on;
 % axis([-inf inf -100 100]);
@@ -144,7 +163,7 @@ subplot(3,1,3);
 plot((vehicle_attitude(start:end,1))*1e-6, Yaw(start:end)*r2d,'k-','LineWidth',1);hold on;
 plot(time*1e-6, ekf3_Yaw*r2d,'r-','LineWidth',1);hold on;
 if have_opti_data
-    plot(opti_time_s+6-0.1844,opti_uav_Yaw*r2d-99,'b--','LineWidth',1);hold on;
+    plot(opti_time_s+ 16.386,uav_Yaw*r2d,'b--','LineWidth',1);hold on; %12.278
 end
 grid on;
 % axis([-inf inf -100 100]);
@@ -166,7 +185,7 @@ subplot(3,1,1);
 plot((vehicle_local_position(start:end,1))*1e-6, XYZ(start:end,1),'k:.','LineWidth',1);hold on;
 plot(time*1e-6, ekf3_XYZ(:,1),'r-','LineWidth',1);hold on;
 if have_opti_data
-    plot(opti_time_s+6-0.1844,opti_uav_pos(:,1)-opti_origin_pos(:,1),'b--','LineWidth',1);hold on;
+    plot(opti_time_s+ 16.386,uav_pos(:,1),'b--','LineWidth',1);hold on;
 end
 grid on;
 % axis([-inf inf -100 100]);
@@ -185,7 +204,7 @@ subplot(3,1,2);
 plot((vehicle_local_position(start:end,1))*1e-6, XYZ(start:end,2),'k:.','LineWidth',1);hold on;
 plot(time*1e-6, ekf3_XYZ(:,2),'r--','LineWidth',1);hold on;
 if have_opti_data
-    plot(opti_time_s+6-0.1844,opti_uav_pos(:,2)-opti_origin_pos(:,2),'b-','LineWidth',1);hold on;
+    plot(opti_time_s+ 16.386,uav_pos(:,2),'b-','LineWidth',1);hold on;
 end
 grid on;
 % axis([-inf inf -100 100]);
@@ -203,7 +222,7 @@ subplot(3,1,3);
 plot((vehicle_local_position(start:end,1))*1e-6, XYZ(start:end,3),'k:.','LineWidth',1);hold on;
 plot(time*1e-6, ekf3_XYZ(:,3),'r--','LineWidth',1);hold on;
 if have_opti_data
-    plot(opti_time_s+6-0.1844,opti_uav_pos(:,3)-opti_origin_pos(:,3)+0.2,'b-','LineWidth',1);hold on;
+    plot(opti_time_s+ 16.386,uav_pos(:,3),'b-','LineWidth',1);hold on;
 end
 grid on;
 % axis([-inf inf -100 100]);
