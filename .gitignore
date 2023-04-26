@@ -2,6 +2,9 @@
 *.gcov
 *~
 *.orig
+*.mat
+*.ulg
+*.csv
 
 .cache/
 build/
