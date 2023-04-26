@@ -26,8 +26,8 @@ addpath(genpath(pwd));
 d2r=pi/180;
 r2d=180/pi;
 %% two offline can be use, something different. px4 v12.3.0
-ulgFileName = 'opt_flow'; % the ulog file name  17_48_41
-gps_enable=0;
+ulgFileName = 'log15-20'; % the ulog file name  17_48_41
+gps_enable=1;
 mocap_enable=1;
 flow_enable=1;
 tmp1=[ ulgFileName, '_sensor_combined_0.csv'];
@@ -42,7 +42,7 @@ have_data=exist(tmp1,"file") & exist(tmp2,"file") & exist(tmp3,"file") & exist(t
 % if ~have_data
     if ismac
         % on macOS, run " which ulog2csv " on terminal to get it.
-        command = ['!/usr/local/bin/ulog2csv ' ulgFileName '.ulg']; % /usr/local/bin/ is the path of python3
+        command = ['!/usr/local/bin/ulog2csv ' ulgFileName '.ulg']; % In xx/ulog2csv, xx is the path of python3 (3.9)
     else
         % on windows and linux just make sure you have installed pyulog
         command = ['!ulog2csv ' ulgFileName '.ulg']; % have installed ulog2csv,

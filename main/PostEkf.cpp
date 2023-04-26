@@ -132,9 +132,9 @@ void PostEkf::update()
 
             // select what should be update by fushmode
             UpdateBaroSample(); // Baro
-            // UpdateGpsSample(); // Gps
+            UpdateGpsSample(); // Gps
             UpdateMagSample(); // Mag
-            // const bool new_ev_odom = UpdateExtVisionSample();
+            const bool new_ev_odom = UpdateExtVisionSample();
             const bool new_optical_flow = UpdateFlowSample();
 
             if (_ekf.update()) {

@@ -241,7 +241,7 @@ struct parameters {
 	 * @bit 8 vision velocity fusion
 	 * @reboot_required true
 	 */
-	int32_t fusion_mode{2};		///< bitmasked integer that selects which aiding sources will be used
+	int32_t fusion_mode{24};		///< bitmasked integer that selects which aiding sources will be used
 	/**
 	 * Determines the primary source of height data used by the EKF.
 	 *
@@ -254,7 +254,7 @@ struct parameters {
 	 * @value 3 Vision
 	 * @reboot_required true
 	 */
-	int32_t vdist_sensor_type{0};	///< selects the primary source for height data
+	int32_t vdist_sensor_type{3};	///< selects the primary source for height data
 	int32_t terrain_fusion_mode{TerrainFusionMask::TerrainFuseRangeFinder |
 				    TerrainFusionMask::TerrainFuseOpticalFlow}; ///< aiding source(s) selection bitmask for the terrain estimator
 	int32_t sensor_interval_min_ms{20};		///< minimum time of arrival difference between non IMU sensor updates. Sets the size of the observation buffers. (mSec)
@@ -332,7 +332,7 @@ struct parameters {
 	const float vehicle_variance_scaler{0.0f};	///< gain applied to vehicle height variance used in calculation of height above ground observation variance
 	float max_hagl_for_range_aid{5.0f};	///< maximum height above ground for which we allow to use the range finder as height source (if range_aid == 1)
 	float max_vel_for_range_aid{1.0f};	///< maximum ground velocity for which we allow to use the range finder as height source (if range_aid == 1)
-	int32_t range_aid{0};			///< allow switching primary height source to range finder if certain conditions are met
+	int32_t range_aid{1};			///< allow switching primary height source to range finder if certain conditions are met
 	float range_aid_innov_gate{1.0f}; 	///< gate size used for innovation consistency checks for range aid fusion
 	float range_valid_quality_s{1.0f};	///< minimum duration during which the reported range finder signal quality needs to be non-zero in order to be declared valid (s)
 	float range_cos_max_tilt{0.7071f};	///< cosine of the maximum tilt angle from the vertical that permits use of range finder and flow data
