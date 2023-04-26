@@ -8,17 +8,22 @@ using math::constrain;
 using matrix::Eulerf;
 using matrix::Quatf;
 using matrix::Vector3f;
-bool bReadGPS=true, bmagread=true, bReadBaro=true, bReadStatus=true;
-PostEkf::PostEkf(std::string filename, std::string mag_name,std::string baro_name,std::string gps_name, std::string status_name )
-:_file_name(filename),_mag_name(mag_name),_baro_name(baro_name),_gps_name(gps_name),_status_name(status_name)
+bool bReadGPS=true, bmagread=true, bReadBaro=true, bReadStatus=true, bevread=true; 
+PostEkf::PostEkf(std::string filename, std::string mag_name, std::string baro_name, std::string gps_name, std::string status_name, std::string visual_odometry_name)
+: _file_name(filename), _mag_name(mag_name), _baro_name(baro_name), _gps_name(gps_name), _status_name(status_name), _visual_odometry_name(visual_odometry_name)
 {
     csv_mag = CsvParser_new(_mag_name.c_str(), ",", 1);
     csv_imu = CsvParser_new(_file_name.c_str(), ",", 1);
     csv_baro = CsvParser_new(_baro_name.c_str(), ",", 1);
     csv_gps = CsvParser_new(_gps_name.c_str(), ",", 1); 
-    csv_status = CsvParser_new(_status_name.c_str(), ",", 1);    
+    csv_status = CsvParser_new(_status_name.c_str(), ",", 1); 
+    csv_ev = CsvParser_new(_visual_odometry_name.c_str(), ",", 1);   
     _fp_out = fopen("../results/ecloutput.csv", "w");
     if(_fp_out==NULL) _fp_out = stdout;
+    parameters *_params=(_ekf.getParamHandle());
+    int32_t temp=_params->fusion_mode;
+    printf("[_params]:fusion_mode %d \n",temp);
+
 }
 
 PostEkf::~PostEkf()
@@ -55,6 +60,7 @@ void PostEkf::update()
         baro_updated = false;
         gps_updated = false;
         status_updated = false;
+        ev_odom_updated = false;
 
         // begin follow with PX4
         bool imu_updated = false;
@@ -125,6 +131,8 @@ void PostEkf::update()
             // UpdateGpsSample(); // Gps
             UpdateMagSample(); // Mag
 
+		    const bool new_ev_odom = UpdateExtVisionSample();
+
             if (_ekf.update()) {
                 PublishLocalPosition(now);
                 // publish something else...
@@ -142,6 +150,8 @@ void PostEkf::update()
     // free memory
     CsvParser_destroy(csv_imu);
     CsvParser_destroy(csv_mag);
+    CsvParser_destroy(csv_gps);
+    CsvParser_destroy(csv_ev);
     CsvParser_destroy(csv_baro);
     CsvParser_destroy(csv_status);
 }
@@ -175,7 +185,7 @@ void PostEkf::receive_imu(const char** row_fields)
 
     sensor_combined.accelerometer_integral_dt = atoi(row_fields[ACCELEROMETER_INTEGRAL_DT]);
     sensor_combined.accelerometer_clipping = atoi(row_fields[ACC_CLIP]);
-    printf("[sensor_combined]:time %llu, g1 %f, g2 %f, g3 %f, dt %u,  a1 %f, a2 %f, a3 %f, dt %u , clip %d \n", sensor_combined.timestamp, sensor_combined.gyro_rad[0], sensor_combined.gyro_rad[1], sensor_combined.gyro_rad[2], sensor_combined.gyro_integral_dt, sensor_combined.accelerometer_m_s2[0], sensor_combined.accelerometer_m_s2[1], sensor_combined.accelerometer_m_s2[2], sensor_combined.accelerometer_integral_dt,sensor_combined.accelerometer_clipping);
+    // printf("[sensor_combined]:time %llu, g1 %f, g2 %f, g3 %f, dt %u,  a1 %f, a2 %f, a3 %f, dt %u , clip %d \n", sensor_combined.timestamp, sensor_combined.gyro_rad[0], sensor_combined.gyro_rad[1], sensor_combined.gyro_rad[2], sensor_combined.gyro_integral_dt, sensor_combined.accelerometer_m_s2[0], sensor_combined.accelerometer_m_s2[1], sensor_combined.accelerometer_m_s2[2], sensor_combined.accelerometer_integral_dt,sensor_combined.accelerometer_clipping);
 }
 void PostEkf::receive_mag(const char** row_fields)
 {
@@ -187,7 +197,46 @@ void PostEkf::receive_mag(const char** row_fields)
     magnetometer.magnetometer_ga[1] = atof(row_fields[MAGNETOMETER_GA_Y]);
     magnetometer.magnetometer_ga[2] = atof(row_fields[MAGNETOMETER_GA_Z]);
     magnetometer.calibration_count   = atoi(row_fields[CALIBRATION_COUNT]);
-    printf("[magnetometer]:time %llu, m1 %f, m2 %f, m3 %f \n", magnetometer.timestamp, magnetometer.magnetometer_ga[0], magnetometer.magnetometer_ga[1], magnetometer.magnetometer_ga[2]);
+    // printf("[magnetometer]:time %llu, m1 %f, m2 %f, m3 %f \n", magnetometer.timestamp, magnetometer.magnetometer_ga[0], magnetometer.magnetometer_ga[1], magnetometer.magnetometer_ga[2]);
+}
+void PostEkf::receive_ev(const char** row_fields)
+{
+
+    // printf("receive_ev.\n");
+    
+    ev_odom.timestamp   = atoi(row_fields[TIMESTAMP]);
+    ev_odom.timestamp_sample   = atoi(row_fields[TIMESTAMP_SAMPLE]);
+    ev_odom.x = atof(row_fields[2]);
+    ev_odom.y = atof(row_fields[3]);
+    ev_odom.z = atof(row_fields[4]);
+
+    ev_odom.q[0] = atof(row_fields[5]);
+    ev_odom.q[1] = atof(row_fields[6]);
+    ev_odom.q[2] = atof(row_fields[7]);
+    ev_odom.q[3] = atof(row_fields[8]);
+
+    ev_odom.q_offset[0] = 0.0f;
+    ev_odom.q_offset[1] = 0.0f;
+    ev_odom.q_offset[2] = 0.0f;
+    ev_odom.q_offset[3] = 0.0f;
+    for(int i=0;i<21;i++)
+    {
+        ev_odom.pose_covariance[i]=0.0f;
+    }
+    ev_odom.vx = NAN;
+    ev_odom.vy = NAN;
+    ev_odom.vz = NAN;
+    ev_odom.rollspeed = NAN;
+    ev_odom.pitchspeed = NAN;
+    ev_odom.yawspeed = NAN;
+    for(int i=0; i<21; i++)
+    {
+        ev_odom.velocity_covariance[i]=0.0f;
+    }
+    ev_odom.local_frame   = 0;
+    ev_odom.velocity_frame   = 1;
+
+    printf("[ev_odom]:time %llu, x %f, y %f, z %f, q0 %f, q1 %f, q2 %f, q3 %f, vx %f, vy %f, vz %f \n", ev_odom.timestamp, ev_odom.x, ev_odom.y, ev_odom.z, ev_odom.q[0], ev_odom.q[1], ev_odom.q[2], ev_odom.q[3], ev_odom.vx, ev_odom.vy, ev_odom.vz);
 }
 void PostEkf::receive_baro(const char** row_fields)
 {
@@ -200,7 +249,7 @@ void PostEkf::receive_baro(const char** row_fields)
     airdata.baro_temp_celcius = atof(row_fields[BARO_TEMP_CELCIUS]);
     airdata.baro_pressure_pa = atof(row_fields[BARO_PRESSURE_PA]);
     airdata.rho = atof(row_fields[RHO]);
-    printf("[airdata]:time %llu, baro_alt_meter %f, baro_temp_celcius %f, baro_pressure_pa %f rho %f \n", airdata.timestamp, airdata.baro_alt_meter, airdata.baro_temp_celcius, airdata.baro_pressure_pa,airdata.rho);
+    // printf("[airdata]:time %llu, baro_alt_meter %f, baro_temp_celcius %f, baro_pressure_pa %f rho %f \n", airdata.timestamp, airdata.baro_alt_meter, airdata.baro_temp_celcius, airdata.baro_pressure_pa,airdata.rho);
 
 }
 void PostEkf::receive_gps(const char** row_fields)
@@ -242,7 +291,7 @@ void PostEkf::receive_gps(const char** row_fields)
 
     vehicle_gps_position.selected   = atoi(row_fields[SELECTED]);
 
-    printf("[vehicle_gps_position]: time %llu, time_utc_usec %llu, lat %d, lon %d, alt %d, alt_ellipsoid %d, s_variance_m_s %f, c_variance_rad %f, eph %f, epv %f, hdop %f, vdop %f, noise_per_ms %d, jamming_indicator %d, vel_m_s %f, v1 %f, v2 %f, v3 %f, cog_rad %f, timestamp_time_relative %d, fix_type %d, vel_ned_valid %d, satellites_used %d\n", vehicle_gps_position.timestamp, vehicle_gps_position.time_utc_usec, vehicle_gps_position.lat, vehicle_gps_position.lon, vehicle_gps_position.alt, vehicle_gps_position.alt_ellipsoid, vehicle_gps_position.s_variance_m_s, vehicle_gps_position.c_variance_rad, vehicle_gps_position.eph, vehicle_gps_position.epv, vehicle_gps_position.hdop, vehicle_gps_position.vdop, vehicle_gps_position.noise_per_ms, vehicle_gps_position.jamming_indicator, vehicle_gps_position.vel_m_s, vehicle_gps_position.vel_n_m_s, vehicle_gps_position.vel_e_m_s, vehicle_gps_position.vel_d_m_s, vehicle_gps_position.cog_rad, vehicle_gps_position.timestamp_time_relative, vehicle_gps_position.fix_type, vehicle_gps_position.vel_ned_valid, vehicle_gps_position.satellites_used);
+    // printf("[vehicle_gps_position]: time %llu, time_utc_usec %llu, lat %d, lon %d, alt %d, alt_ellipsoid %d, s_variance_m_s %f, c_variance_rad %f, eph %f, epv %f, hdop %f, vdop %f, noise_per_ms %d, jamming_indicator %d, vel_m_s %f, v1 %f, v2 %f, v3 %f, cog_rad %f, timestamp_time_relative %d, fix_type %d, vel_ned_valid %d, satellites_used %d\n", vehicle_gps_position.timestamp, vehicle_gps_position.time_utc_usec, vehicle_gps_position.lat, vehicle_gps_position.lon, vehicle_gps_position.alt, vehicle_gps_position.alt_ellipsoid, vehicle_gps_position.s_variance_m_s, vehicle_gps_position.c_variance_rad, vehicle_gps_position.eph, vehicle_gps_position.epv, vehicle_gps_position.hdop, vehicle_gps_position.vdop, vehicle_gps_position.noise_per_ms, vehicle_gps_position.jamming_indicator, vehicle_gps_position.vel_m_s, vehicle_gps_position.vel_n_m_s, vehicle_gps_position.vel_e_m_s, vehicle_gps_position.vel_d_m_s, vehicle_gps_position.cog_rad, vehicle_gps_position.timestamp_time_relative, vehicle_gps_position.fix_type, vehicle_gps_position.vel_ned_valid, vehicle_gps_position.satellites_used);
 
 }
 void PostEkf::receive_status(const char** row_fields)
@@ -285,7 +334,7 @@ void PostEkf::receive_status(const char** row_fields)
     vehicle_status.latest_arming_reason = atoi(row_fields[30]);
     vehicle_status.latest_disarming_reason = atoi(row_fields[31]);
 
-    printf("[status]: time %llu, nav_state_timestamp %llu, failsafe_timestamp %llu, armed_time %llu, takeoff_time %llu, onboard_control_sensors_present %d, onboard_control_sensors_enabled %d, onboard_control_sensors_health %d, nav_state %d, arming_state %d, hil_state %d, failsafe %f, system_type %d, system_id %d, component_id %d, vehicle_type %d, is_vtol %f, is_vtol_tailsitter %f, vtol_fw_permanent_stab %f, in_transition_mode %f, in_transition_to_fw %d, rc_signal_lost %f, rc_input_mode %d\n", vehicle_status.timestamp, vehicle_status.nav_state_timestamp, vehicle_status.failsafe_timestamp, vehicle_status.armed_time, vehicle_status.takeoff_time, vehicle_status.onboard_control_sensors_present, vehicle_status.onboard_control_sensors_enabled, vehicle_status.onboard_control_sensors_health, vehicle_status.nav_state, vehicle_status.arming_state, vehicle_status.hil_state,(float) vehicle_status.failsafe, vehicle_status.system_type, vehicle_status.system_id, vehicle_status.component_id, vehicle_status.vehicle_type, (float)vehicle_status.is_vtol, (float)vehicle_status.is_vtol_tailsitter, (float)vehicle_status.vtol_fw_permanent_stab, (float) vehicle_status.in_transition_mode, vehicle_status.in_transition_to_fw, (float)vehicle_status.rc_signal_lost, vehicle_status.rc_input_mode);
+    // printf("[status]: time %llu, nav_state_timestamp %llu, failsafe_timestamp %llu, armed_time %llu, takeoff_time %llu, onboard_control_sensors_present %d, onboard_control_sensors_enabled %d, onboard_control_sensors_health %d, nav_state %d, arming_state %d, hil_state %d, failsafe %f, system_type %d, system_id %d, component_id %d, vehicle_type %d, is_vtol %f, is_vtol_tailsitter %f, vtol_fw_permanent_stab %f, in_transition_mode %f, in_transition_to_fw %d, rc_signal_lost %f, rc_input_mode %d\n", vehicle_status.timestamp, vehicle_status.nav_state_timestamp, vehicle_status.failsafe_timestamp, vehicle_status.armed_time, vehicle_status.takeoff_time, vehicle_status.onboard_control_sensors_present, vehicle_status.onboard_control_sensors_enabled, vehicle_status.onboard_control_sensors_health, vehicle_status.nav_state, vehicle_status.arming_state, vehicle_status.hil_state,(float) vehicle_status.failsafe, vehicle_status.system_type, vehicle_status.system_id, vehicle_status.component_id, vehicle_status.vehicle_type, (float)vehicle_status.is_vtol, (float)vehicle_status.is_vtol_tailsitter, (float)vehicle_status.vtol_fw_permanent_stab, (float) vehicle_status.in_transition_mode, vehicle_status.in_transition_to_fw, (float)vehicle_status.rc_signal_lost, vehicle_status.rc_input_mode);
 
 
 }
@@ -526,6 +575,136 @@ void PostEkf::UpdateMagSample()
 
     }
 }
+bool PostEkf::UpdateExtVisionSample()
+{
+	// EKF external vision sample
+	bool new_ev_odom = false;
+	// const unsigned last_generation = _ev_odom_sub.get_last_generation();
+    
+    //read ev
+    
+    if(bevread && (ev_row = CsvParser_getRow(csv_ev)))
+    {
+        // printf("ReadExtVisionSample.\n");
+        //read ev data
+        char** rowFields = CsvParser_getFields(ev_row);
+        int field_count = CsvParser_getNumFields(ev_row);
+        if (EV_FIELD_COUNT != field_count) 
+        {
+        printf("skip line, cause ev col count %d!=%d", field_count, EV_FIELD_COUNT);
+        return 0;
+        }
+        else{
+            receive_ev((const char**)rowFields);
+        }
+        CsvParser_destroy_row(ev_row);
+
+        bevread = false;
+    }
+    // for replay, the timestamp of imu, that is sensor_combined.timestamp, can be used to the "time" stream.
+    // printf("[ev_odom]:ev %llu , imu %llu \n", ev_odom.timestamp, sensor_combined.timestamp);
+    if(ev_odom.timestamp < sensor_combined.timestamp)
+    {
+        ev_odom_updated = true; //else, we have to waitting for time.
+        bevread = true;
+        
+    }
+
+	// if (_ev_odom_sub.update(&ev_odom)) {
+    if (ev_odom_updated) {
+        // printf("ev_odom_updated.\n");
+    
+		// if (_msg_missed_odometry_perf == nullptr) {
+		// 	_msg_missed_odometry_perf = perf_alloc(PC_COUNT, MODULE_NAME": vehicle_visual_odometry messages missed");
+
+		// } else if (_ev_odom_sub.get_last_generation() != last_generation + 1) {
+		// 	perf_count(_msg_missed_odometry_perf);
+		// }
+        // printf("ev_odom_updated.\n");
+		extVisionSample ev_data{};
+
+		// if error estimates are unavailable, use parameter defined defaults
+
+		// check for valid velocity data
+		if (PX4_ISFINITE(ev_odom.vx) && PX4_ISFINITE(ev_odom.vy) && PX4_ISFINITE(ev_odom.vz)) {
+			ev_data.vel(0) = ev_odom.vx;
+			ev_data.vel(1) = ev_odom.vy;
+			ev_data.vel(2) = ev_odom.vz;
+
+			if (ev_odom.velocity_frame == vehicle_odometry_s::BODY_FRAME_FRD) {
+				ev_data.vel_frame = velocity_frame_t::BODY_FRAME_FRD;
+
+			} else {
+				ev_data.vel_frame = velocity_frame_t::LOCAL_FRAME_FRD;
+			}
+
+			// velocity measurement error from ev_data or parameters
+			float param_evv_noise_var = sq(_param_ekf2_evv_noise);
+
+			if (!_param_ekf2_ev_noise_md && PX4_ISFINITE(ev_odom.velocity_covariance[ev_odom.COVARIANCE_MATRIX_VX_VARIANCE])
+			    && PX4_ISFINITE(ev_odom.velocity_covariance[ev_odom.COVARIANCE_MATRIX_VY_VARIANCE])
+			    && PX4_ISFINITE(ev_odom.velocity_covariance[ev_odom.COVARIANCE_MATRIX_VZ_VARIANCE])) {
+				ev_data.velCov(0, 0) = ev_odom.velocity_covariance[ev_odom.COVARIANCE_MATRIX_VX_VARIANCE];
+				ev_data.velCov(0, 1) = ev_data.velCov(1, 0) = ev_odom.velocity_covariance[1];
+				ev_data.velCov(0, 2) = ev_data.velCov(2, 0) = ev_odom.velocity_covariance[2];
+				ev_data.velCov(1, 1) = ev_odom.velocity_covariance[ev_odom.COVARIANCE_MATRIX_VY_VARIANCE];
+				ev_data.velCov(1, 2) = ev_data.velCov(2, 1) = ev_odom.velocity_covariance[7];
+				ev_data.velCov(2, 2) = ev_odom.velocity_covariance[ev_odom.COVARIANCE_MATRIX_VZ_VARIANCE];
+
+			} else {
+				ev_data.velCov = matrix::eye<float, 3>() * param_evv_noise_var;
+			}
+		}
+
+		// check for valid position data
+		if (PX4_ISFINITE(ev_odom.x) && PX4_ISFINITE(ev_odom.y) && PX4_ISFINITE(ev_odom.z)) {
+			ev_data.pos(0) = ev_odom.x;
+			ev_data.pos(1) = ev_odom.y;
+			ev_data.pos(2) = ev_odom.z;
+
+			float param_evp_noise_var = sq(_param_ekf2_evp_noise);
+
+			// position measurement error from ev_data or parameters
+			if (!_param_ekf2_ev_noise_md && PX4_ISFINITE(ev_odom.pose_covariance[ev_odom.COVARIANCE_MATRIX_X_VARIANCE])
+			    && PX4_ISFINITE(ev_odom.pose_covariance[ev_odom.COVARIANCE_MATRIX_Y_VARIANCE])
+			    && PX4_ISFINITE(ev_odom.pose_covariance[ev_odom.COVARIANCE_MATRIX_Z_VARIANCE])) {
+				ev_data.posVar(0) = fmaxf(param_evp_noise_var, ev_odom.pose_covariance[ev_odom.COVARIANCE_MATRIX_X_VARIANCE]);
+				ev_data.posVar(1) = fmaxf(param_evp_noise_var, ev_odom.pose_covariance[ev_odom.COVARIANCE_MATRIX_Y_VARIANCE]);
+				ev_data.posVar(2) = fmaxf(param_evp_noise_var, ev_odom.pose_covariance[ev_odom.COVARIANCE_MATRIX_Z_VARIANCE]);
+
+			} else {
+				ev_data.posVar.setAll(param_evp_noise_var);
+			}
+		}
+
+		// check for valid orientation data
+		if (PX4_ISFINITE(ev_odom.q[0])) {
+			ev_data.quat = Quatf(ev_odom.q);
+
+			// orientation measurement error from ev_data or parameters
+			float param_eva_noise_var = sq(_param_ekf2_eva_noise);
+
+			if (!_param_ekf2_ev_noise_md && PX4_ISFINITE(ev_odom.pose_covariance[ev_odom.COVARIANCE_MATRIX_YAW_VARIANCE])) {
+				ev_data.angVar = fmaxf(param_eva_noise_var, ev_odom.pose_covariance[ev_odom.COVARIANCE_MATRIX_YAW_VARIANCE]);
+
+			} else {
+				ev_data.angVar = param_eva_noise_var;
+			}
+		}
+
+		// use timestamp from external computer, clocks are synchronized when using MAVROS
+		ev_data.time_us = ev_odom.timestamp_sample;
+		_ekf.setExtVisionData(ev_data);
+
+		new_ev_odom = true;
+
+		// ekf2_timestamps.visual_odometry_timestamp_rel = (int16_t)((int64_t)ev_odom.timestamp / 100 -
+		// 		(int64_t)ekf2_timestamps.timestamp / 100);
+	}
+
+	return new_ev_odom;
+}
+
 void PostEkf::PublishAttitude(const hrt_abstime &timestamp)
 {
     if (_ekf.attitude_valid()) {

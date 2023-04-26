@@ -130,6 +130,7 @@ struct vehicle_status_s {
 
 #define IMU_FIELD_COUNT 11
 #define MAG_FIELD_COUNT 7
+#define EV_FIELD_COUNT 63
 #define BARO_FIELD_COUNT 7
 #define GPS_FIELD_COUNT 27
 #define STATUS_FIELD_COUNT 32
@@ -314,6 +315,44 @@ struct vehicle_magnetometer_s {
     uint8_t _padding0[7]; // required for logger
 };
 
+struct vehicle_odometry_s {
+	uint64_t timestamp;
+	uint64_t timestamp_sample;
+	float x;
+	float y;
+	float z;
+	float q[4];
+	float q_offset[4];
+	float pose_covariance[21];
+	float vx;
+	float vy;
+	float vz;
+	float rollspeed;
+	float pitchspeed;
+	float yawspeed;
+	float velocity_covariance[21];
+	uint8_t local_frame;
+	uint8_t velocity_frame;
+
+	static constexpr uint8_t COVARIANCE_MATRIX_X_VARIANCE = 0;
+	static constexpr uint8_t COVARIANCE_MATRIX_Y_VARIANCE = 6;
+	static constexpr uint8_t COVARIANCE_MATRIX_Z_VARIANCE = 11;
+	static constexpr uint8_t COVARIANCE_MATRIX_ROLL_VARIANCE = 15;
+	static constexpr uint8_t COVARIANCE_MATRIX_PITCH_VARIANCE = 18;
+	static constexpr uint8_t COVARIANCE_MATRIX_YAW_VARIANCE = 20;
+	static constexpr uint8_t COVARIANCE_MATRIX_VX_VARIANCE = 0;
+	static constexpr uint8_t COVARIANCE_MATRIX_VY_VARIANCE = 6;
+	static constexpr uint8_t COVARIANCE_MATRIX_VZ_VARIANCE = 11;
+	static constexpr uint8_t COVARIANCE_MATRIX_ROLLRATE_VARIANCE = 15;
+	static constexpr uint8_t COVARIANCE_MATRIX_PITCHRATE_VARIANCE = 18;
+	static constexpr uint8_t COVARIANCE_MATRIX_YAWRATE_VARIANCE = 20;
+	static constexpr uint8_t LOCAL_FRAME_NED = 0;
+	static constexpr uint8_t LOCAL_FRAME_FRD = 1;
+	static constexpr uint8_t LOCAL_FRAME_OTHER = 2;
+	static constexpr uint8_t BODY_FRAME_FRD = 3;
+
+};
+
 struct vehicle_air_data_s {
     uint64_t timestamp;            // time since system start (microseconds)
     uint64_t timestamp_sample;     // the timestamp of the raw data (microseconds)
@@ -343,10 +382,11 @@ private:
     std::string _baro_name = {""};
     std::string _gps_name = {""};
     std::string _status_name = {""};
+	std::string _visual_odometry_name = {""};
     Ekf _ekf;
     FILE * _fp_out = NULL;
 public:
-    PostEkf(std::string filename, std::string mag_name,std::string baro_name,std::string gps_name, std::string status_name);
+    PostEkf(std::string filename, std::string mag_name, std::string baro_name, std::string gps_name, std::string status_name, std::string visual_odometry_name);
     PostEkf() = delete;
     ~PostEkf();
 
@@ -356,6 +396,8 @@ private:
     sensor_combined_s sensor_combined = {0};
     vehicle_magnetometer_s magnetometer = {0};
     vehicle_magnetometer_s last_magnetometer = {0};
+	vehicle_odometry_s ev_odom = {0};
+	vehicle_odometry_s last_ev_odom = {0};
     vehicle_air_data_s airdata = {0};
     vehicle_air_data_s last_airdata = {0};
     vehicle_gps_position_s vehicle_gps_position = {0};
@@ -363,6 +405,7 @@ private:
     vehicle_status_s vehicle_status = {0};
     //flag
     bool mag_updated = false;
+	bool ev_odom_updated = false;
     bool baro_updated = false;
     bool gps_updated = false;
     bool status_updated = false;
@@ -370,6 +413,8 @@ private:
     CsvRow* imu_row = nullptr;
     CsvParser* csv_mag;
     CsvRow* mag_row= nullptr; 
+	CsvParser* csv_ev;
+    CsvRow* ev_row= nullptr; 
     CsvParser* csv_baro;
     CsvRow* baro_row = nullptr;
     CsvParser* csv_gps;
@@ -381,6 +426,7 @@ private:
     void output_csv(const hrt_abstime &timestamp);
     void receive_imu(const char** row_fields);
     void receive_mag(const char** row_fields);
+	void receive_ev(const char** row_fields);
     void receive_baro(const char** row_fields);
     void receive_gps(const char** row_fields);
     void receive_status(const char** row_fields);
@@ -419,6 +465,10 @@ private:
     float _param_ekf3_gnd_eff_dz{4.0f};
     float _param_ekf3_gnd_max_hgt{0.5f};
     float _param_ekf3_mag_decl{0.f};
+	float  _param_ekf2_evv_noise{0.1};
+	int _param_ekf2_ev_noise_md{0};
+	float  _param_ekf2_evp_noise{0.05};
+	float  _param_ekf2_eva_noise{0.05};
 
     bool _armed{false};
 
@@ -444,6 +494,7 @@ private:
     void UpdateBaroSample();
 	void UpdateGpsSample();
 	void UpdateMagSample();
+	bool UpdateExtVisionSample();
     void UpdateMagCalibration(const hrt_abstime &timestamp);
 
 
