@@ -8,21 +8,24 @@ using math::constrain;
 using matrix::Eulerf;
 using matrix::Quatf;
 using matrix::Vector3f;
-bool bReadGPS=true, bmagread=true, bReadBaro=true, bReadStatus=true, bevread=true; 
-PostEkf::PostEkf(std::string filename, std::string mag_name, std::string baro_name, std::string gps_name, std::string status_name, std::string visual_odometry_name)
-: _file_name(filename), _mag_name(mag_name), _baro_name(baro_name), _gps_name(gps_name), _status_name(status_name), _visual_odometry_name(visual_odometry_name)
+bool bReadGPS=true, bmagread=true, bReadBaro=true, bReadStatus=true, bevread=true, bflowread=true;  
+PostEkf::PostEkf(std::string filename, std::string mag_name, std::string baro_name, std::string gps_name, std::string status_name, std::string visual_odometry_name, std::string optical_flow_name)
+: _file_name(filename), _mag_name(mag_name), _baro_name(baro_name), _gps_name(gps_name), _status_name(status_name), _visual_odometry_name(visual_odometry_name), _optical_flow_name(optical_flow_name)
 {
     csv_mag = CsvParser_new(_mag_name.c_str(), ",", 1);
     csv_imu = CsvParser_new(_file_name.c_str(), ",", 1);
     csv_baro = CsvParser_new(_baro_name.c_str(), ",", 1);
     csv_gps = CsvParser_new(_gps_name.c_str(), ",", 1); 
     csv_status = CsvParser_new(_status_name.c_str(), ",", 1); 
-    csv_ev = CsvParser_new(_visual_odometry_name.c_str(), ",", 1);   
+    csv_ev = CsvParser_new(_visual_odometry_name.c_str(), ",", 1); 
+    csv_optical_flow = CsvParser_new(_optical_flow_name.c_str(), ",", 1);   
     _fp_out = fopen("../results/ecloutput.csv", "w");
     if(_fp_out==NULL) _fp_out = stdout;
     parameters *_params=(_ekf.getParamHandle());
     int32_t temp=_params->fusion_mode;
     printf("[_params]:fusion_mode %d \n",temp);
+    temp=_params->vdist_sensor_type;
+    printf("[_params]:source of height %d \n",temp);
 
 }
 
@@ -127,11 +130,12 @@ void PostEkf::update()
             // if (_vehicle_land_detected_sub.updated())
 
 
+            // select what should be update by fushmode
             UpdateBaroSample(); // Baro
             // UpdateGpsSample(); // Gps
             UpdateMagSample(); // Mag
-
-		    const bool new_ev_odom = UpdateExtVisionSample();
+            // const bool new_ev_odom = UpdateExtVisionSample();
+            const bool new_optical_flow = UpdateFlowSample();
 
             if (_ekf.update()) {
                 PublishLocalPosition(now);
@@ -154,6 +158,7 @@ void PostEkf::update()
     CsvParser_destroy(csv_ev);
     CsvParser_destroy(csv_baro);
     CsvParser_destroy(csv_status);
+    CsvParser_destroy(csv_optical_flow);
 }
 void PostEkf::output_csv(const hrt_abstime &timestamp)
 {
@@ -237,6 +242,32 @@ void PostEkf::receive_ev(const char** row_fields)
     ev_odom.velocity_frame   = 1;
 
     printf("[ev_odom]:time %llu, x %f, y %f, z %f, q0 %f, q1 %f, q2 %f, q3 %f, vx %f, vy %f, vz %f \n", ev_odom.timestamp, ev_odom.x, ev_odom.y, ev_odom.z, ev_odom.q[0], ev_odom.q[1], ev_odom.q[2], ev_odom.q[3], ev_odom.vx, ev_odom.vy, ev_odom.vz);
+}
+
+void PostEkf::receive_optical_flow(const char** row_fields)
+{
+    optical_flow.timestamp   = atoi(row_fields[TIMESTAMP]);
+    optical_flow.pixel_flow_x_integral = atof(row_fields[1]);
+    optical_flow.pixel_flow_y_integral = atof(row_fields[2]);
+    optical_flow.gyro_x_rate_integral = atof(row_fields[3]);
+    optical_flow.gyro_y_rate_integral = atof(row_fields[4]);
+    optical_flow.gyro_z_rate_integral = atof(row_fields[5]);
+    optical_flow.ground_distance_m = atof(row_fields[6]);
+    optical_flow.integration_timespan = atoi(row_fields[7]);
+    optical_flow.time_since_last_sonar_update = atoi(row_fields[8]);
+
+    optical_flow.max_flow_rate = atof(row_fields[9]);
+    optical_flow.min_ground_distance = atof(row_fields[10]);
+    optical_flow.max_ground_distance = atof(row_fields[11]);
+
+    optical_flow.frame_count_since_last_readout = atoi(row_fields[12]);
+    optical_flow.gyro_temperature = atoi(row_fields[13]);
+    optical_flow.sensor_id = atoi(row_fields[14]);
+    optical_flow.quality = atoi(row_fields[15]);
+    optical_flow.mode = atoi(row_fields[16]);
+
+    printf("[optical_flow]:time %llu, gyro_x_rate_integral %f, gyro_y_rate_integral %f, gyro_z_rate_integral %f \n", optical_flow.timestamp, optical_flow.gyro_x_rate_integral, optical_flow.gyro_y_rate_integral, optical_flow.gyro_z_rate_integral);
+
 }
 void PostEkf::receive_baro(const char** row_fields)
 {
@@ -891,4 +922,77 @@ void PostEkf::UpdateMagCalibration(const hrt_abstime &timestamp)
 			}
 		}
 	}
+}
+
+bool PostEkf::UpdateFlowSample()
+{
+	// EKF flow sample
+	bool new_optical_flow = false;
+	// const unsigned last_generation = _optical_flow_sub.get_last_generation();
+
+    // read data
+
+    if(bflowread && (optical_flow_row = CsvParser_getRow(csv_optical_flow)))
+    {
+        // read baro data
+        char** rowFields = CsvParser_getFields(optical_flow_row);
+        int field_count = CsvParser_getNumFields(optical_flow_row);
+        if (FLOW_FIELD_COUNT != field_count) 
+        {
+            printf("skip line, cause flow col count %d!=%d", field_count, FLOW_FIELD_COUNT);
+            return 0;
+        }
+        else{
+            receive_optical_flow((const char**)rowFields);
+        }
+        CsvParser_destroy_row(optical_flow_row);
+
+        bflowread= false;
+    }
+    if(optical_flow.timestamp <sensor_combined.timestamp)
+    {
+        optical_flow_updated = true;
+        bflowread = true;
+    }
+
+
+
+    // then follow the px4
+    if (optical_flow_updated) {
+	// if (_optical_flow_sub.update(&optical_flow)) {
+		// if (_msg_missed_optical_flow_perf == nullptr) {
+		// 	_msg_missed_optical_flow_perf = perf_alloc(PC_COUNT, MODULE_NAME": optical_flow messages missed");
+
+		// } else if (_optical_flow_sub.get_last_generation() != last_generation + 1) {
+		// 	perf_count(_msg_missed_optical_flow_perf);
+		// }
+
+		flowSample flow {
+			.time_us = optical_flow.timestamp,
+			// NOTE: the EKF uses the reverse sign convention to the flow sensor. EKF assumes positive LOS rate
+			// is produced by a RH rotation of the image about the sensor axis.
+			.flow_xy_rad = Vector2f{-optical_flow.pixel_flow_x_integral, -optical_flow.pixel_flow_y_integral},
+			.gyro_xyz = Vector3f{-optical_flow.gyro_x_rate_integral, -optical_flow.gyro_y_rate_integral, -optical_flow.gyro_z_rate_integral},
+			.dt = 1e-6f * (float)optical_flow.integration_timespan,
+			.quality = optical_flow.quality,
+		};
+
+		if (PX4_ISFINITE(optical_flow.pixel_flow_y_integral) &&
+		    PX4_ISFINITE(optical_flow.pixel_flow_x_integral) &&
+		    flow.dt < 1) {
+
+			// Save sensor limits reported by the optical flow sensor
+			_ekf.set_optical_flow_limits(optical_flow.max_flow_rate, optical_flow.min_ground_distance,
+						     optical_flow.max_ground_distance);
+
+			_ekf.setOpticalFlowData(flow);
+
+			new_optical_flow = true;
+		}
+
+		// ekf2_timestamps.optical_flow_timestamp_rel = (int16_t)((int64_t)optical_flow.timestamp / 100 -
+		// 		(int64_t)ekf2_timestamps.timestamp / 100);
+	}
+
+	return new_optical_flow;
 }

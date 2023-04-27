@@ -132,6 +132,7 @@ struct vehicle_status_s {
 #define MAG_FIELD_COUNT 7
 #define EV_FIELD_COUNT 63
 #define BARO_FIELD_COUNT 7
+#define  FLOW_FIELD_COUNT 17
 #define GPS_FIELD_COUNT 27
 #define STATUS_FIELD_COUNT 32
 
@@ -365,7 +366,31 @@ struct vehicle_air_data_s {
     uint8_t _padding0[4]; // required for logger
 };
 
+struct optical_flow_s {
 
+	uint64_t timestamp;
+	float pixel_flow_x_integral;
+	float pixel_flow_y_integral;
+	float gyro_x_rate_integral;
+	float gyro_y_rate_integral;
+	float gyro_z_rate_integral;
+	float ground_distance_m;
+	uint32_t integration_timespan;
+	uint32_t time_since_last_sonar_update;
+	float max_flow_rate;
+	float min_ground_distance;
+	float max_ground_distance;
+	uint16_t frame_count_since_last_readout;
+	int16_t gyro_temperature;
+	uint8_t sensor_id;
+	uint8_t quality;
+	uint8_t mode;
+	static constexpr uint8_t MODE_UNKNOWN = 0;
+	static constexpr uint8_t MODE_BRIGHT = 1;
+	static constexpr uint8_t MODE_LOWLIGHT = 2;
+	static constexpr uint8_t MODE_SUPER_LOWLIGHT = 3;
+
+};
 struct LOGStruct
 {
    imuSample imu_data;
@@ -383,16 +408,18 @@ private:
     std::string _gps_name = {""};
     std::string _status_name = {""};
 	std::string _visual_odometry_name = {""};
+	std::string _optical_flow_name = {""};
     Ekf _ekf;
     FILE * _fp_out = NULL;
 public:
-    PostEkf(std::string filename, std::string mag_name, std::string baro_name, std::string gps_name, std::string status_name, std::string visual_odometry_name);
+    PostEkf(std::string filename, std::string mag_name, std::string baro_name, std::string gps_name, std::string status_name, std::string visual_odometry_name, std::string optical_flow_name);
     PostEkf() = delete;
     ~PostEkf();
 
     void update();
 
 private:
+	optical_flow_s optical_flow = {0};
     sensor_combined_s sensor_combined = {0};
     vehicle_magnetometer_s magnetometer = {0};
     vehicle_magnetometer_s last_magnetometer = {0};
@@ -409,6 +436,7 @@ private:
     bool baro_updated = false;
     bool gps_updated = false;
     bool status_updated = false;
+	bool optical_flow_updated = false;
     CsvParser* csv_imu;
     CsvRow* imu_row = nullptr;
     CsvParser* csv_mag;
@@ -421,6 +449,8 @@ private:
     CsvRow* gps_row = nullptr;
     CsvParser* csv_status;
     CsvRow* status_row = nullptr;
+	CsvParser* csv_optical_flow;
+    CsvRow* optical_flow_row = nullptr;
 
     void write_header();
     void output_csv(const hrt_abstime &timestamp);
@@ -430,6 +460,7 @@ private:
     void receive_baro(const char** row_fields);
     void receive_gps(const char** row_fields);
     void receive_status(const char** row_fields);
+	void receive_optical_flow(const char** row_fields);
 
 
     // follow px4
@@ -496,6 +527,7 @@ private:
 	void UpdateMagSample();
 	bool UpdateExtVisionSample();
     void UpdateMagCalibration(const hrt_abstime &timestamp);
+	bool UpdateFlowSample();
 
 
 };

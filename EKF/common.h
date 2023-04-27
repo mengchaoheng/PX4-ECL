@@ -214,8 +214,47 @@ enum TerrainFusionMask : int32_t {
 
 struct parameters {
 	// measurement source control
-	int32_t fusion_mode{24};		///< bitmasked integer that selects which aiding sources will be used
-	int32_t vdist_sensor_type{3};	///< selects the primary source for height data
+	/**
+	 * Integer bitmask controlling data fusion and aiding methods.
+	 *
+	 * Set bits in the following positions to enable:
+	 * 0 : Set to true to use GPS data if available
+	 * 1 : Set to true to use optical flow data if available
+	 * 2 : Set to true to inhibit IMU delta velocity bias estimation
+	 * 3 : Set to true to enable vision position fusion
+	 * 4 : Set to true to enable vision yaw fusion. Cannot be used if bit position 7 is true.
+	 * 5 : Set to true to enable multi-rotor drag specific force fusion
+	 * 6 : set to true if the EV observations are in a non NED reference frame and need to be rotated before being used
+	 * 7 : Set to true to enable GPS yaw fusion. Cannot be used if bit position 4 is true.
+	 *
+	 * @group EKF2
+	 * @min 0
+	 * @max 511
+	 * @bit 0 use GPS
+	 * @bit 1 use optical flow
+	 * @bit 2 inhibit IMU bias estimation
+	 * @bit 3 vision position fusion
+	 * @bit 4 vision yaw fusion
+	 * @bit 5 multi-rotor drag fusion
+	 * @bit 6 rotate external vision
+	 * @bit 7 GPS yaw fusion
+	 * @bit 8 vision velocity fusion
+	 * @reboot_required true
+	 */
+	int32_t fusion_mode{2};		///< bitmasked integer that selects which aiding sources will be used
+	/**
+	 * Determines the primary source of height data used by the EKF.
+	 *
+	 * The range sensor option should only be used when for operation over a flat surface as the local NED origin will move up and down with ground level.
+	 *
+	 * @group EKF2
+	 * @value 0 Barometric pressure
+	 * @value 1 GPS
+	 * @value 2 Range sensor
+	 * @value 3 Vision
+	 * @reboot_required true
+	 */
+	int32_t vdist_sensor_type{0};	///< selects the primary source for height data
 	int32_t terrain_fusion_mode{TerrainFusionMask::TerrainFuseRangeFinder |
 				    TerrainFusionMask::TerrainFuseOpticalFlow}; ///< aiding source(s) selection bitmask for the terrain estimator
 	int32_t sensor_interval_min_ms{20};		///< minimum time of arrival difference between non IMU sensor updates. Sets the size of the observation buffers. (mSec)

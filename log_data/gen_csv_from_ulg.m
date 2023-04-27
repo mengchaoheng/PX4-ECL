@@ -26,21 +26,23 @@ addpath(genpath(pwd));
 d2r=pi/180;
 r2d=180/pi;
 %% two offline can be use, something different. px4 v12.3.0
-ulgFileName = 'log15-20'; % the ulog file name  17_48_41
+ulgFileName = 'opt_flow'; % the ulog file name  17_48_41
 gps_enable=0;
 mocap_enable=1;
+flow_enable=1;
 tmp1=[ ulgFileName, '_sensor_combined_0.csv'];
 tmp2=[ ulgFileName, '_vehicle_air_data_0.csv'];
 tmp3=[ ulgFileName, '_vehicle_gps_position_0.csv'];
 tmp4=[ ulgFileName, '_vehicle_magnetometer_0.csv'];
 tmp5=[ ulgFileName, '_vehicle_status_0.csv'];
 tmp6=[ ulgFileName, '_vehicle_visual_odometry_0.csv'];
+tmp7=[ ulgFileName, '_optical_flow_0.csv'];
 % exist tmp var
 have_data=exist(tmp1,"file") & exist(tmp2,"file") & exist(tmp3,"file") & exist(tmp4,"file") & exist(tmp5,"file");
 % if ~have_data
     if ismac
         % on macOS, run " which ulog2csv " on terminal to get it.
-        command = ['!/opt/homebrew/bin/ulog2csv ' ulgFileName '.ulg']; % /usr/local/bin/ is the path of ulog2csv, 
+        command = ['!/usr/local/bin/ulog2csv ' ulgFileName '.ulg']; % /usr/local/bin/ is the path of python3
     else
         % on windows and linux just make sure you have installed pyulog
         command = ['!ulog2csv ' ulgFileName '.ulg']; % have installed ulog2csv,
@@ -63,6 +65,9 @@ have_data=exist(tmp1,"file") & exist(tmp2,"file") & exist(tmp3,"file") & exist(t
     end
     if exist(tmp6,"file") && mocap_enable
         movefile *_vehicle_visual_odometry_0.csv ../csv_data/
+    end
+    if exist(tmp7,"file") && flow_enable
+        movefile *_optical_flow_0.csv ../csv_data/
     end
     movefile *_vehicle_magnetometer_0.csv ../csv_data/
     movefile *_vehicle_status_0.csv ../csv_data/

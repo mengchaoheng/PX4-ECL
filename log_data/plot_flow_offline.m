@@ -71,7 +71,7 @@ Roll=quat_to_roll([q_0 q_1 q_2 q_3]);
 Pitch=quat_to_pitch([q_0 q_1 q_2 q_3]);
 Yaw=quat_to_yaw([q_0 q_1 q_2 q_3]);
 %%
-have_opti_data=exist("opti.mat","file");
+have_opti_data=0;%exist("opti.mat","file");
 if have_opti_data
 load 'opti.mat';
 % data allocation, using q_init convert frame of opti to NED
