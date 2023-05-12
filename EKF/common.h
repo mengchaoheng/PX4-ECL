@@ -241,7 +241,7 @@ struct parameters {
 	 * @bit 8 vision velocity fusion
 	 * @reboot_required true
 	 */
-	int32_t fusion_mode{24};		///< bitmasked integer that selects which aiding sources will be used
+	int32_t fusion_mode{MASK_USE_OF};		///< bitmasked integer that selects which aiding sources will be used
 	/**
 	 * Determines the primary source of height data used by the EKF.
 	 *
@@ -254,7 +254,7 @@ struct parameters {
 	 * @value 3 Vision
 	 * @reboot_required true
 	 */
-	int32_t vdist_sensor_type{3};	///< selects the primary source for height data
+	int32_t vdist_sensor_type{VDIST_SENSOR_RANGE};	///< selects the primary source for height data
 	int32_t terrain_fusion_mode{TerrainFusionMask::TerrainFuseRangeFinder |
 				    TerrainFusionMask::TerrainFuseOpticalFlow}; ///< aiding source(s) selection bitmask for the terrain estimator
 	int32_t sensor_interval_min_ms{20};		///< minimum time of arrival difference between non IMU sensor updates. Sets the size of the observation buffers. (mSec)
