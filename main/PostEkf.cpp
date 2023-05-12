@@ -58,13 +58,14 @@ void PostEkf::update()
     // read imu
     while ((imu_row = CsvParser_getRow(csv_imu)))
     {
-        printf("imu_row");
+        // printf("imu_row");
         // restore data update flag
         mag_updated = false;
         baro_updated = false;
         gps_updated = false;
         status_updated = false;
         ev_odom_updated = false;
+        optical_flow_updated=false;
 
         // begin follow with PX4
         bool imu_updated = false;
@@ -133,9 +134,9 @@ void PostEkf::update()
 
             // select what should be update by fushmode
             UpdateBaroSample(); // Baro
-            // UpdateGpsSample(); // Gps
+            UpdateGpsSample(); // Gps
             UpdateMagSample(); // Mag
-            // const bool new_ev_odom = UpdateExtVisionSample();
+            const bool new_ev_odom = UpdateExtVisionSample();
             const bool new_optical_flow = UpdateFlowSample();
 
             if (_ekf.update()) {
@@ -149,6 +150,8 @@ void PostEkf::update()
                 output<< states(0)<<" "<<states(1)<<" "<<states(2)<<" "<<states(3)<<" "<<states(4)<<" "<<states(5)<<" "<<states(6)<<" "<<states(7)<<" "<<states(8)<<" "<<states(9)<<" "<<states(10)<<" "<<states(11)<<" "<<states(12)<<" "<<states(13)<<" "<<states(14)<<" "<<states(15)<<" "<<states(16)<<" "<<states(17)<<" "<<states(18)<<" "<<states(19)<<" "<<states(20)<<" "<<states(21)<<" "<<states(22)<<" "<<states(23) <<" "<<std::endl;
 
                 UpdateMagCalibration(now);
+
+                // _ekf.print_status();
             }
         }
     }
@@ -191,7 +194,7 @@ void PostEkf::receive_imu(const char** row_fields)
 
     sensor_combined.accelerometer_integral_dt = atoi(row_fields[ACCELEROMETER_INTEGRAL_DT]);
     sensor_combined.accelerometer_clipping = atoi(row_fields[ACC_CLIP]);
-    printf("[sensor_combined]:time %llu, g1 %f, g2 %f, g3 %f, dt %u,  a1 %f, a2 %f, a3 %f, dt %u , clip %d \n", sensor_combined.timestamp, sensor_combined.gyro_rad[0], sensor_combined.gyro_rad[1], sensor_combined.gyro_rad[2], sensor_combined.gyro_integral_dt, sensor_combined.accelerometer_m_s2[0], sensor_combined.accelerometer_m_s2[1], sensor_combined.accelerometer_m_s2[2], sensor_combined.accelerometer_integral_dt,sensor_combined.accelerometer_clipping);
+    // printf("[sensor_combined]:time %llu, g1 %f, g2 %f, g3 %f, dt %u,  a1 %f, a2 %f, a3 %f, dt %u , clip %d \n", sensor_combined.timestamp, sensor_combined.gyro_rad[0], sensor_combined.gyro_rad[1], sensor_combined.gyro_rad[2], sensor_combined.gyro_integral_dt, sensor_combined.accelerometer_m_s2[0], sensor_combined.accelerometer_m_s2[1], sensor_combined.accelerometer_m_s2[2], sensor_combined.accelerometer_integral_dt,sensor_combined.accelerometer_clipping);
 }
 void PostEkf::receive_mag(const char** row_fields)
 {
@@ -203,7 +206,7 @@ void PostEkf::receive_mag(const char** row_fields)
     magnetometer.magnetometer_ga[1] = atof(row_fields[MAGNETOMETER_GA_Y]);
     magnetometer.magnetometer_ga[2] = atof(row_fields[MAGNETOMETER_GA_Z]);
     magnetometer.calibration_count   = atoi(row_fields[CALIBRATION_COUNT]);
-    printf("[magnetometer]:time %llu, m1 %f, m2 %f, m3 %f \n", magnetometer.timestamp, magnetometer.magnetometer_ga[0], magnetometer.magnetometer_ga[1], magnetometer.magnetometer_ga[2]);
+    // printf("[magnetometer]:time %llu, m1 %f, m2 %f, m3 %f \n", magnetometer.timestamp, magnetometer.magnetometer_ga[0], magnetometer.magnetometer_ga[1], magnetometer.magnetometer_ga[2]);
 }
 void PostEkf::receive_ev(const char** row_fields)
 {
@@ -242,7 +245,7 @@ void PostEkf::receive_ev(const char** row_fields)
     ev_odom.local_frame   = 0;
     ev_odom.velocity_frame   = 1;
 
-    printf("[ev_odom]:time %llu, x %f, y %f, z %f, q0 %f, q1 %f, q2 %f, q3 %f, vx %f, vy %f, vz %f \n", ev_odom.timestamp, ev_odom.x, ev_odom.y, ev_odom.z, ev_odom.q[0], ev_odom.q[1], ev_odom.q[2], ev_odom.q[3], ev_odom.vx, ev_odom.vy, ev_odom.vz);
+    // printf("[ev_odom]:time %llu, x %f, y %f, z %f, q0 %f, q1 %f, q2 %f, q3 %f, vx %f, vy %f, vz %f \n", ev_odom.timestamp, ev_odom.x, ev_odom.y, ev_odom.z, ev_odom.q[0], ev_odom.q[1], ev_odom.q[2], ev_odom.q[3], ev_odom.vx, ev_odom.vy, ev_odom.vz);
 }
 
 void PostEkf::receive_optical_flow(const char** row_fields)
@@ -267,7 +270,7 @@ void PostEkf::receive_optical_flow(const char** row_fields)
     optical_flow.quality = atoi(row_fields[15]);
     optical_flow.mode = atoi(row_fields[16]);
 
-    printf("[optical_flow]:time %llu, gyro_x_rate_integral %f, gyro_y_rate_integral %f, gyro_z_rate_integral %f \n", optical_flow.timestamp, optical_flow.gyro_x_rate_integral, optical_flow.gyro_y_rate_integral, optical_flow.gyro_z_rate_integral);
+    // printf("[optical_flow]:time %llu, gyro_x_rate_integral %f, gyro_y_rate_integral %f, gyro_z_rate_integral %f \n", optical_flow.timestamp, optical_flow.gyro_x_rate_integral, optical_flow.gyro_y_rate_integral, optical_flow.gyro_z_rate_integral);
 
 }
 void PostEkf::receive_baro(const char** row_fields)
@@ -281,7 +284,7 @@ void PostEkf::receive_baro(const char** row_fields)
     airdata.baro_temp_celcius = atof(row_fields[BARO_TEMP_CELCIUS]);
     airdata.baro_pressure_pa = atof(row_fields[BARO_PRESSURE_PA]);
     airdata.rho = atof(row_fields[RHO]);
-    printf("[airdata]:time %llu, baro_alt_meter %f, baro_temp_celcius %f, baro_pressure_pa %f rho %f \n", airdata.timestamp, airdata.baro_alt_meter, airdata.baro_temp_celcius, airdata.baro_pressure_pa,airdata.rho);
+    // printf("[airdata]:time %llu, baro_alt_meter %f, baro_temp_celcius %f, baro_pressure_pa %f rho %f \n", airdata.timestamp, airdata.baro_alt_meter, airdata.baro_temp_celcius, airdata.baro_pressure_pa,airdata.rho);
 
 }
 void PostEkf::receive_gps(const char** row_fields)
@@ -323,7 +326,7 @@ void PostEkf::receive_gps(const char** row_fields)
 
     vehicle_gps_position.selected   = atoi(row_fields[SELECTED]);
 
-    printf("[vehicle_gps_position]: time %llu, time_utc_usec %llu, lat %d, lon %d, alt %d, alt_ellipsoid %d, s_variance_m_s %f, c_variance_rad %f, eph %f, epv %f, hdop %f, vdop %f, noise_per_ms %d, jamming_indicator %d, vel_m_s %f, v1 %f, v2 %f, v3 %f, cog_rad %f, timestamp_time_relative %d, fix_type %d, vel_ned_valid %d, satellites_used %d\n", vehicle_gps_position.timestamp, vehicle_gps_position.time_utc_usec, vehicle_gps_position.lat, vehicle_gps_position.lon, vehicle_gps_position.alt, vehicle_gps_position.alt_ellipsoid, vehicle_gps_position.s_variance_m_s, vehicle_gps_position.c_variance_rad, vehicle_gps_position.eph, vehicle_gps_position.epv, vehicle_gps_position.hdop, vehicle_gps_position.vdop, vehicle_gps_position.noise_per_ms, vehicle_gps_position.jamming_indicator, vehicle_gps_position.vel_m_s, vehicle_gps_position.vel_n_m_s, vehicle_gps_position.vel_e_m_s, vehicle_gps_position.vel_d_m_s, vehicle_gps_position.cog_rad, vehicle_gps_position.timestamp_time_relative, vehicle_gps_position.fix_type, vehicle_gps_position.vel_ned_valid, vehicle_gps_position.satellites_used);
+    // printf("[vehicle_gps_position]: time %llu, time_utc_usec %llu, lat %d, lon %d, alt %d, alt_ellipsoid %d, s_variance_m_s %f, c_variance_rad %f, eph %f, epv %f, hdop %f, vdop %f, noise_per_ms %d, jamming_indicator %d, vel_m_s %f, v1 %f, v2 %f, v3 %f, cog_rad %f, timestamp_time_relative %d, fix_type %d, vel_ned_valid %d, satellites_used %d\n", vehicle_gps_position.timestamp, vehicle_gps_position.time_utc_usec, vehicle_gps_position.lat, vehicle_gps_position.lon, vehicle_gps_position.alt, vehicle_gps_position.alt_ellipsoid, vehicle_gps_position.s_variance_m_s, vehicle_gps_position.c_variance_rad, vehicle_gps_position.eph, vehicle_gps_position.epv, vehicle_gps_position.hdop, vehicle_gps_position.vdop, vehicle_gps_position.noise_per_ms, vehicle_gps_position.jamming_indicator, vehicle_gps_position.vel_m_s, vehicle_gps_position.vel_n_m_s, vehicle_gps_position.vel_e_m_s, vehicle_gps_position.vel_d_m_s, vehicle_gps_position.cog_rad, vehicle_gps_position.timestamp_time_relative, vehicle_gps_position.fix_type, vehicle_gps_position.vel_ned_valid, vehicle_gps_position.satellites_used);
 
 }
 void PostEkf::receive_status(const char** row_fields)
@@ -366,7 +369,7 @@ void PostEkf::receive_status(const char** row_fields)
     vehicle_status.latest_arming_reason = atoi(row_fields[30]);
     vehicle_status.latest_disarming_reason = atoi(row_fields[31]);
 
-    printf("[status]: time %llu, nav_state_timestamp %llu, failsafe_timestamp %llu, armed_time %llu, takeoff_time %llu, onboard_control_sensors_present %d, onboard_control_sensors_enabled %d, onboard_control_sensors_health %d, nav_state %d, arming_state %d, hil_state %d, failsafe %f, system_type %d, system_id %d, component_id %d, vehicle_type %d, is_vtol %f, is_vtol_tailsitter %f, vtol_fw_permanent_stab %f, in_transition_mode %f, in_transition_to_fw %d, rc_signal_lost %f, rc_input_mode %d\n", vehicle_status.timestamp, vehicle_status.nav_state_timestamp, vehicle_status.failsafe_timestamp, vehicle_status.armed_time, vehicle_status.takeoff_time, vehicle_status.onboard_control_sensors_present, vehicle_status.onboard_control_sensors_enabled, vehicle_status.onboard_control_sensors_health, vehicle_status.nav_state, vehicle_status.arming_state, vehicle_status.hil_state,(float) vehicle_status.failsafe, vehicle_status.system_type, vehicle_status.system_id, vehicle_status.component_id, vehicle_status.vehicle_type, (float)vehicle_status.is_vtol, (float)vehicle_status.is_vtol_tailsitter, (float)vehicle_status.vtol_fw_permanent_stab, (float) vehicle_status.in_transition_mode, vehicle_status.in_transition_to_fw, (float)vehicle_status.rc_signal_lost, vehicle_status.rc_input_mode);
+    // printf("[status]: time %llu, nav_state_timestamp %llu, failsafe_timestamp %llu, armed_time %llu, takeoff_time %llu, onboard_control_sensors_present %d, onboard_control_sensors_enabled %d, onboard_control_sensors_health %d, nav_state %d, arming_state %d, hil_state %d, failsafe %f, system_type %d, system_id %d, component_id %d, vehicle_type %d, is_vtol %f, is_vtol_tailsitter %f, vtol_fw_permanent_stab %f, in_transition_mode %f, in_transition_to_fw %d, rc_signal_lost %f, rc_input_mode %d\n", vehicle_status.timestamp, vehicle_status.nav_state_timestamp, vehicle_status.failsafe_timestamp, vehicle_status.armed_time, vehicle_status.takeoff_time, vehicle_status.onboard_control_sensors_present, vehicle_status.onboard_control_sensors_enabled, vehicle_status.onboard_control_sensors_health, vehicle_status.nav_state, vehicle_status.arming_state, vehicle_status.hil_state,(float) vehicle_status.failsafe, vehicle_status.system_type, vehicle_status.system_id, vehicle_status.component_id, vehicle_status.vehicle_type, (float)vehicle_status.is_vtol, (float)vehicle_status.is_vtol_tailsitter, (float)vehicle_status.vtol_fw_permanent_stab, (float) vehicle_status.in_transition_mode, vehicle_status.in_transition_to_fw, (float)vehicle_status.rc_signal_lost, vehicle_status.rc_input_mode);
 
 
 }
@@ -484,7 +487,7 @@ void PostEkf::UpdateGpsSample()
 
         bReadGPS = false;
     }
-    if(vehicle_gps_position.timestamp  < sensor_combined.timestamp)
+    if( csv_gps->errMsg_ == NULL  && vehicle_gps_position.timestamp  < sensor_combined.timestamp)
     {
         gps_updated = true;
         bReadGPS = true;
@@ -614,8 +617,7 @@ bool PostEkf::UpdateExtVisionSample()
 	// const unsigned last_generation = _ev_odom_sub.get_last_generation();
     
     //read ev
-    
-    if(bevread && (ev_row = CsvParser_getRow(csv_ev)))
+    if( (ev_row = CsvParser_getRow(csv_ev)) && bevread)
     {
         // printf("ReadExtVisionSample.\n");
         //read ev data
@@ -635,7 +637,7 @@ bool PostEkf::UpdateExtVisionSample()
     }
     // for replay, the timestamp of imu, that is sensor_combined.timestamp, can be used to the "time" stream.
     // printf("[ev_odom]:ev %llu , imu %llu \n", ev_odom.timestamp, sensor_combined.timestamp);
-    if(ev_odom.timestamp < sensor_combined.timestamp)
+    if(csv_ev->errMsg_ == NULL  && ev_odom.timestamp < sensor_combined.timestamp)
     {
         ev_odom_updated = true; //else, we have to waitting for time.
         bevread = true;
@@ -932,7 +934,6 @@ bool PostEkf::UpdateFlowSample()
 	// const unsigned last_generation = _optical_flow_sub.get_last_generation();
 
     // read data
-
     if(bflowread && (optical_flow_row = CsvParser_getRow(csv_optical_flow)))
     {
         // read baro data
@@ -950,7 +951,7 @@ bool PostEkf::UpdateFlowSample()
 
         bflowread= false;
     }
-    if(optical_flow.timestamp <sensor_combined.timestamp)
+    if(csv_optical_flow->errMsg_ == NULL  && optical_flow.timestamp <sensor_combined.timestamp)
     {
         optical_flow_updated = true;
         bflowread = true;
@@ -990,7 +991,7 @@ bool PostEkf::UpdateFlowSample()
 
 			new_optical_flow = true;
 		}
-
+        // printf("new_optical_flow \n");
 		// ekf2_timestamps.optical_flow_timestamp_rel = (int16_t)((int64_t)optical_flow.timestamp / 100 -
 		// 		(int64_t)ekf2_timestamps.timestamp / 100);
 	}
