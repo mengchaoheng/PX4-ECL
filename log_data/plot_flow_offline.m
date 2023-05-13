@@ -53,7 +53,7 @@ else
     % copy data to ecl, and then 
     delete(['*' ulgFileName '*.csv'])
 end
-delete('../csv_data/*.csv');
+% delete('../csv_data/*.csv');
 % go to run ekf3 and copy results file to cover that of this proj
 % cd to build and run `make && ./main/postEcl`
 % then continue.

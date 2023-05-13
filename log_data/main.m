@@ -27,7 +27,7 @@ addpath '/Users/mch/Proj/akstuki-PX4-ECL/PX4-ECL/EKF/matlab/EKF_replay/Common'
 d2r=pi/180;
 r2d=180/pi;
 %% two offline can be use, something different. px4 v12.3.0
-ulgFileName = '09_32_48'; % the ulog file name  17_48_41
+ulgFileName = 'opt_flow'; % the ulog file name  17_48_41 log36
 tmp=[ ulgFileName '.mat'];
 % exist tmp var
 if exist(tmp,"file")

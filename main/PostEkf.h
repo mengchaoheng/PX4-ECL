@@ -442,7 +442,7 @@ private:
     CsvParser* csv_mag;
     CsvRow* mag_row= nullptr; 
 	CsvParser* csv_ev;
-    CsvRow* ev_row= nullptr; 
+    CsvRow* ev_row= nullptr;
     CsvParser* csv_baro;
     CsvRow* baro_row = nullptr;
     CsvParser* csv_gps;

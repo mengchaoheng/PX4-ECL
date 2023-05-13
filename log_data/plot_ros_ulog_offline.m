@@ -27,7 +27,7 @@ addpath '/Users/mch/Proj/akstuki-PX4-ECL/PX4-ECL/EKF/matlab/EKF_replay/Common'
 d2r=pi/180;
 r2d=180/pi;
 %% ulog data. two offline can be use, something different. px4 v12.3.0
-ulgFileName = 'log15-20'; % the ulog file name  17_48_41, log15-20(12.3) log36, log_0_2023-4-26-19-52-20, log_6_2023-4-26-17-34-32
+ulgFileName = 'log36'; % the ulog file name  17_48_41, log15-20(12.3) log36, log_0_2023-4-26-19-52-20, log_6_2023-4-26-17-34-32
 tmp=[ ulgFileName '.mat'];
 % exist tmp var
 if exist(tmp,"file")
@@ -79,7 +79,7 @@ vehicle_air_data=log.data.vehicle_air_data_0{:,:};
 
 
 %% ros data
-ros = importdata('ros15-20.csv');% ros15-20(12.3) ros19-51, ros19-51, ros, ros15-20
+ros = importdata('ros.csv');% ros15-20(12.3) ros19-51, ros19-51, ros, ros15-20
 len_ros=length(ros.textdata);
 time_ros=zeros(len_ros-1,2);
 time_ros_start(1,1)=str2double(ros.textdata{2,1});

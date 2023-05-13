@@ -74,6 +74,57 @@ The following is a comparison between the online version of ekf and the offline 
 
 <img src="./log_data/vel.png" width="70%" height="70%" />
 
+## data 
+
+- 17_48_41.ulg
+the imu, mag, baro, gps data from sitl used to test ekf.
+1. version
+> Airframe:	10016 \
+Hardware:	PX4_SITL \
+Software Version:	6bcf1fb7 \
+branch: ekf-df \
+Estimator:	EKF2
+2. fusion control
+```C++
+// measurement source control
+	int32_t fusion_mode{MASK_USE_GPS};		///< bitmasked integer that selects which aiding sources will be used
+	int32_t vdist_sensor_type{VDIST_SENSOR_BARO};	///< selects the primary source for height data
+```
+3. step
+```Console
+gen_csv_from_ulg.m 
+cd build 
+cmake && make 
+./main/postEcl
+```
+
+- log36.ulg and ros.csv
+the optitrack data used to test ekf.
+1. version
+> Airframe:	Generic Quadcopter \
+Quadrotor x (4001) \
+Hardware:	PX4_FMU_V5 (V550) \
+Software Version:	c6186ac0 \
+branch: off \
+OS Version:	NuttX, v8.2.0 \
+Estimator:	EKF2
+2. fusion control
+```C++
+// measurement source control
+	int32_t fusion_mode{24};		///< bitmasked integer that selects which aiding sources will be used
+	int32_t vdist_sensor_type{3};	///< selects the primary source for height data
+```
+3. step
+```Console
+gen_csv_from_ulg.m # log36
+cd build 
+cmake && make # log36
+./main/postEcl
+main.m # log36, this is an old version, maybe need save opti.mat before, or
+plot_ros_ulog_offline.m # this can use ros.csv by a new way to convert data, or
+plot_ros_ulog.m # plot ros and ulog data.
+plot_ros.m # only plot ros data， simply convert data.
+```
 ## matlab replay
 1. cd to `PX4-ECL/EKF/matlab/EKF_replay` and run `px4_replay_import.m` , you need to run gen_csv_from_ulg before and decide use gps data or not. The name of files need to be change. This step will generate `*_data.mat` file which used in replay.
 
