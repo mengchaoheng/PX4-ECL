@@ -26,7 +26,7 @@ addpath(genpath(pwd));
 d2r=pi/180;
 r2d=180/pi;
 %% two offline can be use, something different. px4 v12.3.0
-ulgFileName = 'opt_flow'; % the ulog file name  17_48_41
+ulgFileName = 'log_62_2023-4-9-13-57-58'; % the ulog file name  17_48_41
 gps_enable=1;
 mocap_enable=1;
 flow_enable=1;
@@ -76,3 +76,26 @@ have_data=exist(tmp1,"file") & exist(tmp2,"file") & exist(tmp3,"file") & exist(t
     % or delete .mat
 %     delete(['*' ulgFileName '*.mat'])
 % end
+
+
+% uint32 control_mode_flags	# Bitmask to indicate EKF logic state
+% uint8 CS_TILT_ALIGN = 0		# 0 - true if the filter tilt alignment is complete
+% uint8 CS_YAW_ALIGN = 1		# 1 - true if the filter yaw alignment is complete
+% uint8 CS_GPS = 2		# 2 - true if GPS measurements are being fused
+% uint8 CS_OPT_FLOW = 3		# 3 - true if optical flow measurements are being fused
+control_mode_flags=dec2bin(log.data.estimator_status_0.control_mode_flags)
+
+% uint16 innovation_check_flags # Bitmask to indicate pass/fail status of innovation consistency checks
+% # 0 - true if velocity observations have been rejected
+% # 1 - true if horizontal position observations have been rejected
+% # 2 - true if true if vertical position observations have been rejected
+% # 3 - true if the X magnetometer observation has been rejected
+% # 4 - true if the Y magnetometer observation has been rejected
+% # 5 - true if the Z magnetometer observation has been rejected
+% # 6 - true if the yaw observation has been rejected
+% # 7 - true if the airspeed observation has been rejected
+% # 8 - true if the synthetic sideslip observation has been rejected
+% # 9 - true if the height above ground observation has been rejected
+% # 10 - true if the X optical flow observation has been rejected
+% # 11 - true if the Y optical flow observation has been rejected
+innovation_check_flags=dec2bin(log.data.estimator_status_0.innovation_check_flags)

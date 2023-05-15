@@ -10,7 +10,7 @@ using matrix::Quatf;
 using matrix::Vector3f;
 bool is_time_to_read_new_gps_row=true, is_time_to_read_new_mag_row=true, is_time_to_read_new_baro_row=true, bReadStatus=true, is_time_to_read_new_ev_row=true, is_time_to_read_new_flow_row=true;  
 PostEkf::PostEkf(std::string filename, std::string mag_name, std::string baro_name, std::string gps_name, std::string status_name, std::string visual_odometry_name, std::string optical_flow_name)
-: _file_name(filename), _mag_name(mag_name), _baro_name(baro_name), _gps_name(gps_name), _status_name(status_name), _visual_odometry_name(visual_odometry_name), _optical_flow_name(optical_flow_name)
+: _file_name(filename), _mag_name(mag_name), _baro_name(baro_name), _gps_name(gps_name), _status_name(status_name), _visual_odometry_name(visual_odometry_name), _optical_flow_name(optical_flow_name),_params(_ekf.getParamHandle())
 {
     csv_mag = CsvParser_new(_mag_name.c_str(), ",", 1);
     csv_imu = CsvParser_new(_file_name.c_str(), ",", 1);
@@ -21,7 +21,7 @@ PostEkf::PostEkf(std::string filename, std::string mag_name, std::string baro_na
     csv_optical_flow = CsvParser_new(_optical_flow_name.c_str(), ",", 1);   
     _fp_out = fopen("/Users/mch/Proj/akstuki-PX4-ECL/PX4-ECL/results/ecloutput.csv", "w");
     if(_fp_out==NULL) _fp_out = stdout;
-    parameters *_params=(_ekf.getParamHandle());
+    // parameters *_params=(_ekf.getParamHandle());
     int32_t temp=_params->fusion_mode;
     printf("[_params]:fusion_mode %d \n",temp);
     temp=_params->vdist_sensor_type;
@@ -52,6 +52,7 @@ std::ofstream output("/Users/mch/Proj/akstuki-PX4-ECL/PX4-ECL/results/output.txt
 std::ofstream position_estimator("/Users/mch/Proj/akstuki-PX4-ECL/PX4-ECL/results/position_estimator.txt");
 std::ofstream velocity_estimator("/Users/mch/Proj/akstuki-PX4-ECL/PX4-ECL/results/velocity_estimator.txt");
 std::ofstream euler_estimator("/Users/mch/Proj/akstuki-PX4-ECL/PX4-ECL/results/euler_estimator.txt");
+std::ofstream estimator_status("/Users/mch/Proj/akstuki-PX4-ECL/PX4-ECL/results/estimator_status.txt");
 void PostEkf::update()
 {
     write_header();
@@ -141,6 +142,8 @@ void PostEkf::update()
 
             if (_ekf.update()) {
                 PublishLocalPosition(now);
+                PublishStatus(now);
+                PublishInnovations(now, imu_sample_new);
                 // publish something else...
 
                 // log ekf
@@ -152,6 +155,18 @@ void PostEkf::update()
                 UpdateMagCalibration(now);
 
                 // _ekf.print_status();
+
+                // publish external visual odometry after fixed frame alignment if new odometry is received
+                // if (new_ev_odom) {
+                //     PublishOdometryAligned(now, ev_odom);
+                // }
+
+                // if (new_optical_flow) {
+                //     PublishOpticalFlowVel(now, optical_flow);
+                // }
+
+                // publish ekf2_timestamps
+                // _ekf2_timestamps_pub.publish(ekf2_timestamps);
             }
         }
     }
@@ -245,7 +260,7 @@ void PostEkf::receive_ev(const char** row_fields)
     ev_odom.local_frame   = 0;
     ev_odom.velocity_frame   = 1;
 
-    printf("[ev_odom]:time %llu, x %f, y %f, z %f, q0 %f, q1 %f, q2 %f, q3 %f, vx %f, vy %f, vz %f \n", ev_odom.timestamp, ev_odom.x, ev_odom.y, ev_odom.z, ev_odom.q[0], ev_odom.q[1], ev_odom.q[2], ev_odom.q[3], ev_odom.vx, ev_odom.vy, ev_odom.vz);
+    // printf("[ev_odom]:time %llu, x %f, y %f, z %f, q0 %f, q1 %f, q2 %f, q3 %f, vx %f, vy %f, vz %f \n", ev_odom.timestamp, ev_odom.x, ev_odom.y, ev_odom.z, ev_odom.q[0], ev_odom.q[1], ev_odom.q[2], ev_odom.q[3], ev_odom.vx, ev_odom.vy, ev_odom.vz);
 }
 bool PostEkf::UpdateFlowSample()
 {
@@ -271,7 +286,7 @@ bool PostEkf::UpdateFlowSample()
 
         is_time_to_read_new_flow_row= false;
     }
-    if( !is_time_to_read_new_flow_row  && optical_flow.timestamp <sensor_combined.timestamp)
+    if( !is_time_to_read_new_flow_row  && optical_flow.timestamp <= sensor_combined.timestamp)
     {
         optical_flow_updated = true;
         is_time_to_read_new_flow_row = true;
@@ -289,15 +304,14 @@ bool PostEkf::UpdateFlowSample()
 		// 	perf_count(_msg_missed_optical_flow_perf);
 		// }
 
-		flowSample flow {
-			.time_us = optical_flow.timestamp,
-			// NOTE: the EKF uses the reverse sign convention to the flow sensor. EKF assumes positive LOS rate
-			// is produced by a RH rotation of the image about the sensor axis.
-			.flow_xy_rad = Vector2f{-optical_flow.pixel_flow_x_integral, -optical_flow.pixel_flow_y_integral},
-			.gyro_xyz = Vector3f{-optical_flow.gyro_x_rate_integral, -optical_flow.gyro_y_rate_integral, -optical_flow.gyro_z_rate_integral},
-			.dt = 1e-6f * (float)optical_flow.integration_timespan,
-			.quality = optical_flow.quality,
-		};
+		flowSample flow; 
+        flow.time_us = optical_flow.timestamp;
+        // NOTE: the EKF uses the reverse sign convention to the flow sensor. EKF assumes positive LOS rate
+        // is produced by a RH rotation of the image about the sensor axis.
+        flow.flow_xy_rad = Vector2f{-optical_flow.pixel_flow_x_integral, -optical_flow.pixel_flow_y_integral};
+        flow.gyro_xyz = Vector3f{-optical_flow.gyro_x_rate_integral, -optical_flow.gyro_y_rate_integral, -optical_flow.gyro_z_rate_integral};
+        flow.dt = 1e-6f * (float)optical_flow.integration_timespan;
+        flow.quality = optical_flow.quality;
 
 		if (PX4_ISFINITE(optical_flow.pixel_flow_y_integral) &&
 		    PX4_ISFINITE(optical_flow.pixel_flow_x_integral) &&
@@ -401,7 +415,6 @@ void PostEkf::receive_gps(const char** row_fields)
 }
 void PostEkf::receive_status(const char** row_fields)
 {
-    vehicle_status_s vehicle_status = {0}; 
     vehicle_status.timestamp = atoi(row_fields[0]);
     vehicle_status.nav_state_timestamp = atoi(row_fields[1]);
     vehicle_status.failsafe_timestamp = atoi(row_fields[2]);
@@ -481,20 +494,20 @@ void PostEkf::UpdateVehicleStatusSample()
         // let the EKF know if the vehicle motion is that of a fixed wing (forward flight only relative to wind)
         _ekf.set_is_fixed_wing(is_fixed_wing);
 
-        // _preflt_checker.setVehicleCanObserveHeadingInFlight(vehicle_status.vehicle_type !=
-        //         vehicle_status_s::VEHICLE_TYPE_ROTARY_WING);
+        _preflt_checker.setVehicleCanObserveHeadingInFlight(vehicle_status.vehicle_type !=
+                vehicle_status_s::VEHICLE_TYPE_ROTARY_WING);
 
         _armed = (vehicle_status.arming_state == vehicle_status_s::ARMING_STATE_ARMED);
 
         // update standby (arming state) flag
-        // const bool standby = (vehicle_status.arming_state == vehicle_status_s::ARMING_STATE_STANDBY);
+        const bool standby = (vehicle_status.arming_state == vehicle_status_s::ARMING_STATE_STANDBY);
 
-        // if (_standby != standby) {
-        //     _standby = standby;
+        if (_standby != standby) {
+            _standby = standby;
 
-        //     // reset preflight checks if transitioning in or out of standby arming state
-        //     _preflt_checker.reset();
-        // }
+            // reset preflight checks if transitioning in or out of standby arming state
+            _preflt_checker.reset();
+        }
     }
 }
 void PostEkf::UpdateBaroSample()
@@ -565,28 +578,28 @@ void PostEkf::UpdateGpsSample()
     if(gps_updated)
     {
         // set gps data to ekf
-        gps_message gps_msg{
-			.time_usec = vehicle_gps_position.timestamp,
-			.lat = vehicle_gps_position.lat,
-			.lon = vehicle_gps_position.lon,
-			.alt = vehicle_gps_position.alt,
-			.yaw = vehicle_gps_position.heading,
-			.yaw_offset = vehicle_gps_position.heading_offset,
-			.fix_type = vehicle_gps_position.fix_type,
-			.eph = vehicle_gps_position.eph,
-			.epv = vehicle_gps_position.epv,
-			.sacc = vehicle_gps_position.s_variance_m_s,
-			.vel_m_s = vehicle_gps_position.vel_m_s,
-			.vel_ned = Vector3f{
-				vehicle_gps_position.vel_n_m_s,
-				vehicle_gps_position.vel_e_m_s,
-				vehicle_gps_position.vel_d_m_s
-			},
-			.vel_ned_valid = vehicle_gps_position.vel_ned_valid,
-			.nsats = vehicle_gps_position.satellites_used,
-			.pdop = sqrtf(vehicle_gps_position.hdop *vehicle_gps_position.hdop
-				      + vehicle_gps_position.vdop * vehicle_gps_position.vdop),
-		};
+        gps_message gps_msg;
+        
+        gps_msg.time_usec = vehicle_gps_position.timestamp,
+        gps_msg.lat = vehicle_gps_position.lat,
+        gps_msg.lon = vehicle_gps_position.lon,
+        gps_msg.alt = vehicle_gps_position.alt,
+        gps_msg.yaw = vehicle_gps_position.heading,
+        gps_msg.yaw_offset = vehicle_gps_position.heading_offset,
+        gps_msg.fix_type = vehicle_gps_position.fix_type,
+        gps_msg.eph = vehicle_gps_position.eph,
+        gps_msg.epv = vehicle_gps_position.epv,
+        gps_msg.sacc = vehicle_gps_position.s_variance_m_s,
+        gps_msg.vel_m_s = vehicle_gps_position.vel_m_s,
+        gps_msg.vel_ned = Vector3f{
+            vehicle_gps_position.vel_n_m_s,
+            vehicle_gps_position.vel_e_m_s,
+            vehicle_gps_position.vel_d_m_s
+        },
+        gps_msg.vel_ned_valid = vehicle_gps_position.vel_ned_valid,
+        gps_msg.nsats = vehicle_gps_position.satellites_used,
+        gps_msg.pdop = sqrtf(vehicle_gps_position.hdop *vehicle_gps_position.hdop
+				      + vehicle_gps_position.vdop * vehicle_gps_position.vdop);
 		_ekf.setGpsData(gps_msg);
 
 		_gps_time_usec = gps_msg.time_usec;
@@ -828,6 +841,40 @@ void PostEkf::PublishAttitude(const hrt_abstime &timestamp)
         
 	}
 }
+void PostEkf::PublishInnovations(const hrt_abstime &timestamp, const imuSample &imu)
+{
+	// publish estimator innovation data
+	estimator_innovations_s innovations{};
+	innovations.timestamp_sample = timestamp;
+	_ekf.getGpsVelPosInnov(innovations.gps_hvel, innovations.gps_vvel, innovations.gps_hpos, innovations.gps_vpos);
+	_ekf.getEvVelPosInnov(innovations.ev_hvel, innovations.ev_vvel, innovations.ev_hpos, innovations.ev_vpos);
+	_ekf.getBaroHgtInnov(innovations.baro_vpos);
+	_ekf.getRngHgtInnov(innovations.rng_vpos);
+	_ekf.getAuxVelInnov(innovations.aux_hvel);
+	_ekf.getFlowInnov(innovations.flow);
+	_ekf.getHeadingInnov(innovations.heading);
+	_ekf.getMagInnov(innovations.mag_field);
+	_ekf.getDragInnov(innovations.drag);
+	_ekf.getAirspeedInnov(innovations.airspeed);
+	_ekf.getBetaInnov(innovations.beta);
+	_ekf.getHaglInnov(innovations.hagl);
+	// Not yet supported
+	innovations.aux_vvel = NAN;
+
+	// innovations.timestamp = _replay_mode ? timestamp : hrt_absolute_time();
+	// _estimator_innovations_pub.publish(innovations);
+
+	// calculate noise filtered velocity innovations which are used for pre-flight checking
+	if (_standby) {
+		// TODO: move to run before publications
+		_preflt_checker.setUsingGpsAiding(_ekf.control_status_flags().gps);
+		_preflt_checker.setUsingFlowAiding(_ekf.control_status_flags().opt_flow);
+		_preflt_checker.setUsingEvPosAiding(_ekf.control_status_flags().ev_pos);
+		_preflt_checker.setUsingEvVelAiding(_ekf.control_status_flags().ev_vel);
+
+		_preflt_checker.update(imu.delta_ang_dt, innovations);
+	}
+}
 void PostEkf::PublishLocalPosition(const hrt_abstime &timestamp)
 {
     vehicle_local_position_s lpos;
@@ -856,10 +903,10 @@ void PostEkf::PublishLocalPosition(const hrt_abstime &timestamp)
 	lpos.az = vel_deriv(2);
 
 	// TODO: better status reporting
-	lpos.xy_valid = _ekf.local_position_is_valid();
-	lpos.z_valid = true;
-	lpos.v_xy_valid = _ekf.local_position_is_valid();
-	lpos.v_z_valid = true;
+	lpos.xy_valid = _ekf.local_position_is_valid() && !_preflt_checker.hasHorizFailed();
+	lpos.z_valid = !_preflt_checker.hasVertFailed();
+	lpos.v_xy_valid = _ekf.local_position_is_valid() && !_preflt_checker.hasHorizFailed();
+	lpos.v_z_valid = !_preflt_checker.hasVertFailed();
 
 	// Position of local NED origin in GPS / WGS84 frame
 	if (_ekf.global_origin_valid()) {
@@ -946,6 +993,62 @@ void PostEkf::PublishLocalPosition(const hrt_abstime &timestamp)
     velocity_estimator<< timestamp <<" "<<velocity(0) <<" "<<velocity(1) <<" "
     << velocity(2) <<" "<<std::endl;
 
+
+}
+void PostEkf::PublishStatus(const hrt_abstime &timestamp)
+{
+    estimator_status_s status{};
+	status.timestamp_sample = timestamp;
+
+	_ekf.getOutputTrackingError().copyTo(status.output_tracking_error);
+
+	_ekf.get_gps_check_status(&status.gps_check_fail_flags);
+
+	// only report enabled GPS check failures (the param indexes are shifted by 1 bit, because they don't include
+	// the GPS Fix bit, which is always checked)
+	status.gps_check_fail_flags &= ((uint16_t)_params->gps_check_mask << 1) | 1;
+
+	status.control_mode_flags = _ekf.control_status().value;
+	status.filter_fault_flags = _ekf.fault_status().value;
+
+	uint16_t innov_check_flags_temp = 0;
+	_ekf.get_innovation_test_status(innov_check_flags_temp, status.mag_test_ratio,
+					status.vel_test_ratio, status.pos_test_ratio,
+					status.hgt_test_ratio, status.tas_test_ratio,
+					status.hagl_test_ratio, status.beta_test_ratio);
+
+	// Bit mismatch between ecl and Firmware, combine the 2 first bits to preserve msg definition
+	// TODO: legacy use only, those flags are also in estimator_status_flags
+	status.innovation_check_flags = (innov_check_flags_temp >> 1) | (innov_check_flags_temp & 0x1);
+
+	_ekf.get_ekf_lpos_accuracy(&status.pos_horiz_accuracy, &status.pos_vert_accuracy);
+	_ekf.get_ekf_soln_status(&status.solution_status_flags);
+	_ekf.getImuVibrationMetrics().copyTo(status.vibe);
+
+	// reset counters
+	status.reset_count_vel_ne = _ekf.state_reset_status().velNE_counter;
+	status.reset_count_vel_d = _ekf.state_reset_status().velD_counter;
+	status.reset_count_pos_ne = _ekf.state_reset_status().posNE_counter;
+	status.reset_count_pod_d = _ekf.state_reset_status().posD_counter;
+	status.reset_count_quat = _ekf.state_reset_status().quat_counter;
+
+	status.time_slip = _last_time_slip_us * 1e-6f;
+
+	status.pre_flt_fail_innov_heading = _preflt_checker.hasHeadingFailed();
+	status.pre_flt_fail_innov_vel_horiz = _preflt_checker.hasHorizVelFailed();
+	status.pre_flt_fail_innov_vel_vert = _preflt_checker.hasVertVelFailed();
+	status.pre_flt_fail_innov_height = _preflt_checker.hasHeightFailed();
+	status.pre_flt_fail_mag_field_disturbed = _ekf.control_status_flags().mag_field_disturbed;
+
+	status.accel_device_id = _device_id_accel;
+	status.baro_device_id = _device_id_baro;
+	status.gyro_device_id = _device_id_gyro;
+	status.mag_device_id = _device_id_mag;
+
+	// status.timestamp = _replay_mode ? timestamp : hrt_absolute_time();
+    status.timestamp = timestamp;
+	// _estimator_status_pub.publish(status);
+    estimator_status<< timestamp <<" "<< status.control_mode_flags <<" "<< status.innovation_check_flags <<" "<<" "<<std::endl;
 
 }
 void PostEkf::UpdateMagCalibration(const hrt_abstime &timestamp)

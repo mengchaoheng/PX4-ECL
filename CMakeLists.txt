@@ -112,8 +112,22 @@ if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
 			-Wall
 			-Wextra
 			-Werror
+			-Wno-error=unused-variable
 
 			-Wno-missing-field-initializers # ignore for GCC 4.8 support
+			Warnings
+		# -Wall
+		# -Wextra
+		# -Werror
+
+		
+		# -Wunused-variable
+
+		# # disabled warnings
+		# -Wno-missing-field-initializers
+		# -Wno-missing-include-dirs # TODO: fix and enable
+		# -Wno-unused-parameter
+		# -Wno-unused-but-set-variable
 		)
 	endif()
 

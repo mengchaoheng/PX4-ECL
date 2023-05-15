@@ -6,6 +6,9 @@
 #include <string>
 #include "EKF/ekf.h"
 #include "csvparser.h"
+
+#include "PreFlightChecker.hpp"
+//  #include "Utility/estimator_innovations.h"
 // TODO: create different type of data type
 /*
 enum {
@@ -22,7 +25,7 @@ enum {
  */
 typedef uint64_t	hrt_abstime;
 //can't be use to control, just for data flow logi.
-#define    NAN          __builtin_nanf("0x7fc00000")
+//#define    NAN          __builtin_nanf("0x7fc00000")
 
 #define PX4_ISFINITE(x) std::isfinite(x) //ISFINITE判断
 
@@ -34,99 +37,6 @@ constexpr hrt_abstime operator "" _s(unsigned long long seconds)
 	return hrt_abstime(seconds * 1000000ULL);
 }
 
-struct vehicle_status_s {
-    uint64_t timestamp;
-	uint64_t nav_state_timestamp;
-	uint64_t failsafe_timestamp;
-	uint64_t armed_time;
-	uint64_t takeoff_time;
-	uint32_t onboard_control_sensors_present;
-	uint32_t onboard_control_sensors_enabled;
-	uint32_t onboard_control_sensors_health;
-	uint8_t nav_state;
-	uint8_t arming_state;
-	uint8_t hil_state;
-	bool failsafe;
-	uint8_t system_type;
-	uint8_t system_id;
-	uint8_t component_id;
-	uint8_t vehicle_type;
-	bool is_vtol;
-	bool is_vtol_tailsitter;
-	bool vtol_fw_permanent_stab;
-	bool in_transition_mode;
-	bool in_transition_to_fw;
-	bool rc_signal_lost;
-	uint8_t rc_input_mode;
-	bool data_link_lost;
-	uint8_t data_link_lost_counter;
-	bool high_latency_data_link_lost;
-	bool engine_failure;
-	bool mission_failure;
-	bool geofence_violated;
-	uint8_t failure_detector_status;
-	uint8_t latest_arming_reason;
-	uint8_t latest_disarming_reason;
-	uint8_t _padding0[4]; // required for logger
-    static constexpr uint8_t ARMING_STATE_INIT = 0;
-	static constexpr uint8_t ARMING_STATE_STANDBY = 1;
-	static constexpr uint8_t ARMING_STATE_ARMED = 2;
-	static constexpr uint8_t ARMING_STATE_STANDBY_ERROR = 3;
-	static constexpr uint8_t ARMING_STATE_SHUTDOWN = 4;
-	static constexpr uint8_t ARMING_STATE_IN_AIR_RESTORE = 5;
-	static constexpr uint8_t ARMING_STATE_MAX = 6;
-	static constexpr uint8_t FAILURE_NONE = 0;
-	static constexpr uint8_t FAILURE_ROLL = 1;
-	static constexpr uint8_t FAILURE_PITCH = 2;
-	static constexpr uint8_t FAILURE_ALT = 4;
-	static constexpr uint8_t FAILURE_EXT = 8;
-	static constexpr uint8_t FAILURE_ARM_ESC = 16;
-	static constexpr uint8_t HIL_STATE_OFF = 0;
-	static constexpr uint8_t HIL_STATE_ON = 1;
-	static constexpr uint8_t NAVIGATION_STATE_MANUAL = 0;
-	static constexpr uint8_t NAVIGATION_STATE_ALTCTL = 1;
-	static constexpr uint8_t NAVIGATION_STATE_POSCTL = 2;
-	static constexpr uint8_t NAVIGATION_STATE_AUTO_MISSION = 3;
-	static constexpr uint8_t NAVIGATION_STATE_AUTO_LOITER = 4;
-	static constexpr uint8_t NAVIGATION_STATE_AUTO_RTL = 5;
-	static constexpr uint8_t NAVIGATION_STATE_AUTO_LANDENGFAIL = 8;
-	static constexpr uint8_t NAVIGATION_STATE_AUTO_LANDGPSFAIL = 9;
-	static constexpr uint8_t NAVIGATION_STATE_ACRO = 10;
-	static constexpr uint8_t NAVIGATION_STATE_UNUSED = 11;
-	static constexpr uint8_t NAVIGATION_STATE_DESCEND = 12;
-	static constexpr uint8_t NAVIGATION_STATE_TERMINATION = 13;
-	static constexpr uint8_t NAVIGATION_STATE_OFFBOARD = 14;
-	static constexpr uint8_t NAVIGATION_STATE_STAB = 15;
-	static constexpr uint8_t NAVIGATION_STATE_UNUSED2 = 16;
-	static constexpr uint8_t NAVIGATION_STATE_AUTO_TAKEOFF = 17;
-	static constexpr uint8_t NAVIGATION_STATE_AUTO_LAND = 18;
-	static constexpr uint8_t NAVIGATION_STATE_AUTO_FOLLOW_TARGET = 19;
-	static constexpr uint8_t NAVIGATION_STATE_AUTO_PRECLAND = 20;
-	static constexpr uint8_t NAVIGATION_STATE_ORBIT = 21;
-	static constexpr uint8_t NAVIGATION_STATE_MAX = 22;
-	static constexpr uint8_t RC_IN_MODE_DEFAULT = 0;
-	static constexpr uint8_t RC_IN_MODE_OFF = 1;
-	static constexpr uint8_t RC_IN_MODE_GENERATED = 2;
-	static constexpr uint8_t VEHICLE_TYPE_UNKNOWN = 0;
-	static constexpr uint8_t VEHICLE_TYPE_ROTARY_WING = 1;
-	static constexpr uint8_t VEHICLE_TYPE_FIXED_WING = 2;
-	static constexpr uint8_t VEHICLE_TYPE_ROVER = 3;
-	static constexpr uint8_t VEHICLE_TYPE_AIRSHIP = 4;
-	static constexpr uint8_t ARM_DISARM_REASON_TRANSITION_TO_STANDBY = 0;
-	static constexpr uint8_t ARM_DISARM_REASON_RC_STICK = 1;
-	static constexpr uint8_t ARM_DISARM_REASON_RC_SWITCH = 2;
-	static constexpr uint8_t ARM_DISARM_REASON_COMMAND_INTERNAL = 3;
-	static constexpr uint8_t ARM_DISARM_REASON_COMMAND_EXTERNAL = 4;
-	static constexpr uint8_t ARM_DISARM_REASON_MISSION_START = 5;
-	static constexpr uint8_t ARM_DISARM_REASON_SAFETY_BUTTON = 6;
-	static constexpr uint8_t ARM_DISARM_REASON_AUTO_DISARM_LAND = 7;
-	static constexpr uint8_t ARM_DISARM_REASON_AUTO_DISARM_PREFLIGHT = 8;
-	static constexpr uint8_t ARM_DISARM_REASON_KILL_SWITCH = 9;
-	static constexpr uint8_t ARM_DISARM_REASON_LOCKDOWN = 10;
-	static constexpr uint8_t ARM_DISARM_REASON_FAILURE_DETECTOR = 11;
-	static constexpr uint8_t ARM_DISARM_REASON_SHUTDOWN = 12;
-	static constexpr uint8_t ARM_DISARM_REASON_UNIT_TEST = 13;
-};
 
 #define IMU_FIELD_COUNT 11
 #define MAG_FIELD_COUNT 7
@@ -246,6 +156,79 @@ struct vehicle_local_position_s {
 	static constexpr uint8_t DIST_BOTTOM_SENSOR_RANGE = 1;
 	static constexpr uint8_t DIST_BOTTOM_SENSOR_FLOW = 2;
 };
+
+struct estimator_status_s {
+	uint64_t timestamp;
+	uint64_t timestamp_sample;
+	float vibe[3];
+	float output_tracking_error[3];
+	uint32_t control_mode_flags;
+	uint32_t filter_fault_flags;
+	float pos_horiz_accuracy;
+	float pos_vert_accuracy;
+	float mag_test_ratio;
+	float vel_test_ratio;
+	float pos_test_ratio;
+	float hgt_test_ratio;
+	float tas_test_ratio;
+	float hagl_test_ratio;
+	float beta_test_ratio;
+	float time_slip;
+	uint32_t accel_device_id;
+	uint32_t gyro_device_id;
+	uint32_t baro_device_id;
+	uint32_t mag_device_id;
+	uint16_t gps_check_fail_flags;
+	uint16_t innovation_check_flags;
+	uint16_t solution_status_flags;
+	uint8_t reset_count_vel_ne;
+	uint8_t reset_count_vel_d;
+	uint8_t reset_count_pos_ne;
+	uint8_t reset_count_pod_d;
+	uint8_t reset_count_quat;
+	bool pre_flt_fail_innov_heading;
+	bool pre_flt_fail_innov_vel_horiz;
+	bool pre_flt_fail_innov_vel_vert;
+	bool pre_flt_fail_innov_height;
+	bool pre_flt_fail_mag_field_disturbed;
+	uint8_t health_flags;
+	uint8_t timeout_flags;
+
+	static constexpr uint8_t GPS_CHECK_FAIL_GPS_FIX = 0;
+	static constexpr uint8_t GPS_CHECK_FAIL_MIN_SAT_COUNT = 1;
+	static constexpr uint8_t GPS_CHECK_FAIL_MAX_PDOP = 2;
+	static constexpr uint8_t GPS_CHECK_FAIL_MAX_HORZ_ERR = 3;
+	static constexpr uint8_t GPS_CHECK_FAIL_MAX_VERT_ERR = 4;
+	static constexpr uint8_t GPS_CHECK_FAIL_MAX_SPD_ERR = 5;
+	static constexpr uint8_t GPS_CHECK_FAIL_MAX_HORZ_DRIFT = 6;
+	static constexpr uint8_t GPS_CHECK_FAIL_MAX_VERT_DRIFT = 7;
+	static constexpr uint8_t GPS_CHECK_FAIL_MAX_HORZ_SPD_ERR = 8;
+	static constexpr uint8_t GPS_CHECK_FAIL_MAX_VERT_SPD_ERR = 9;
+	static constexpr uint8_t CS_TILT_ALIGN = 0;
+	static constexpr uint8_t CS_YAW_ALIGN = 1;
+	static constexpr uint8_t CS_GPS = 2;
+	static constexpr uint8_t CS_OPT_FLOW = 3;
+	static constexpr uint8_t CS_MAG_HDG = 4;
+	static constexpr uint8_t CS_MAG_3D = 5;
+	static constexpr uint8_t CS_MAG_DEC = 6;
+	static constexpr uint8_t CS_IN_AIR = 7;
+	static constexpr uint8_t CS_WIND = 8;
+	static constexpr uint8_t CS_BARO_HGT = 9;
+	static constexpr uint8_t CS_RNG_HGT = 10;
+	static constexpr uint8_t CS_GPS_HGT = 11;
+	static constexpr uint8_t CS_EV_POS = 12;
+	static constexpr uint8_t CS_EV_YAW = 13;
+	static constexpr uint8_t CS_EV_HGT = 14;
+	static constexpr uint8_t CS_BETA = 15;
+	static constexpr uint8_t CS_MAG_FIELD = 16;
+	static constexpr uint8_t CS_FIXED_WING = 17;
+	static constexpr uint8_t CS_MAG_FAULT = 18;
+	static constexpr uint8_t CS_ASPD = 19;
+	static constexpr uint8_t CS_GND_EFFECT = 20;
+	static constexpr uint8_t CS_RNG_STUCK = 21;
+	static constexpr uint8_t CS_GPS_YAW = 22;
+	static constexpr uint8_t CS_MAG_ALIGNED = 23;
+};
 struct sensor_combined_s {
     // // Sensor readings in SI-unit form.
     // // These fields are scaled and offset-compensated where possible and do not
@@ -353,6 +336,7 @@ struct vehicle_odometry_s {
 	static constexpr uint8_t BODY_FRAME_FRD = 3;
 
 };
+
 
 struct vehicle_air_data_s {
     uint64_t timestamp;            // time since system start (microseconds)
@@ -502,12 +486,13 @@ private:
 	float  _param_ekf2_eva_noise{0.05};
 
     bool _armed{false};
+	bool _standby{false}; // standby arming state
 
     void PublishAttitude(const hrt_abstime &timestamp);
 	// void PublishEkfDriftMetrics(const hrt_abstime &timestamp);
 	// void PublishEventFlags(const hrt_abstime &timestamp);
 	// void PublishGlobalPosition(const hrt_abstime &timestamp);
-	// void PublishInnovations(const hrt_abstime &timestamp, const imuSample &imu);
+	void PublishInnovations(const hrt_abstime &timestamp, const imuSample &imu);
 	// void PublishInnovationTestRatios(const hrt_abstime &timestamp);
 	// void PublishInnovationVariances(const hrt_abstime &timestamp);
 	void PublishLocalPosition(const hrt_abstime &timestamp);
@@ -516,7 +501,7 @@ private:
 	// void PublishOpticalFlowVel(const hrt_abstime &timestamp, const optical_flow_s &optical_flow);
 	// void PublishSensorBias(const hrt_abstime &timestamp);
 	// void PublishStates(const hrt_abstime &timestamp);
-	// void PublishStatus(const hrt_abstime &timestamp);
+	void PublishStatus(const hrt_abstime &timestamp);
 	// void PublishStatusFlags(const hrt_abstime &timestamp);
 	// void PublishWindEstimate(const hrt_abstime &timestamp);
 	// void PublishYawEstimatorStatus(const hrt_abstime &timestamp);
@@ -528,8 +513,8 @@ private:
 	bool UpdateExtVisionSample();
     void UpdateMagCalibration(const hrt_abstime &timestamp);
 	bool UpdateFlowSample();
-
-
+	PreFlightChecker _preflt_checker;
+	parameters *_params;
 };
 
 #endif // __POST_EKF_2021__
