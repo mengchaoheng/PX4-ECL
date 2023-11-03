@@ -31,7 +31,7 @@ make
 ```
 
 ## Testing ECL
-By following the steps you can run the unit tests
+By following the steps you can run the unit tests:
 
 ```
 make test
