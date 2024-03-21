@@ -1,13 +1,13 @@
-% clear all;
-% close all;
+clear all;
+close all;
 clc;
 format long;
 d2r=pi/180;
 r2d=180/pi;
-opti = importdata('Take 2023-04-25 09.47.11 PM.csv');
+opti = importdata('Take 2023-08-14 05.23.15 PM.csv');
 enable_enu=0;
 if ~enable_enu
-    %% NED. data allocation, convert x-y-z to front-right-down and redefinite q=[w,x,y,z]
+    %% NED. data allocation, convert x-y-z to front-right-down and redefinite q=[w,x,y,z] % 西x北y地z
     opti_time_s=opti.data(:,2);
     opti_origin_pos=[  opti.data(:,8) opti.data(:,7) -opti.data(:,9)]/1000; % (mm) to (m)
     opti_origin_q=[opti.data(:,6)   opti.data(:,4) opti.data(:,3) -opti.data(:,5)];
@@ -16,9 +16,9 @@ if ~enable_enu
     opti_uav_q=[opti.data(:,13) opti.data(:,11) opti.data(:,10)  -opti.data(:,12)]; % X=opti.data(:,10), Y=opti.data(:,11), Z=opti.data(:,12) W=opti.data(:,13)
 
 else
-    %% ENU. origin, the same with ros
+    %% ENU. origin, the same with ros  % 北x西y天z
     opti_time_s=opti.data(:,2);
-    opti_origin_pos=[  opti.data(:,7) opti.data(:,8) opti.data(:,9)]/1000; % (mm) to (m)
+    opti_origin_pos=[  opti.data(:,7) opti.data(:,8) opti.data(:,9)]/1000; % (mm) to (m) 
     opti_origin_q=[opti.data(:,6)   opti.data(:,3) opti.data(:,4) opti.data(:,5)];
     opti_uav_pos=[ opti.data(:,14) opti.data(:,15) opti.data(:,16)]/1000; % X=opti.data(:,14), Y=opti.data(:,15), Z=opti.data(:,16)
     opti_uav_q=[opti.data(:,13) opti.data(:,10) opti.data(:,11)  opti.data(:,12)]; % X=opti.data(:,10), Y=opti.data(:,11), Z=opti.data(:,12) W=opti.data(:,13)

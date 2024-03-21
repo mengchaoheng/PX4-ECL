@@ -27,7 +27,7 @@ addpath '/Users/mch/Proj/akstuki-PX4-ECL/PX4-ECL/EKF/matlab/EKF_replay/Common'
 d2r=pi/180;
 r2d=180/pi;
 %% two offline can be use, something different. px4 v12.3.0
-ulgFileName = 'log_62_2023-4-9-13-57-58'; % the ulog file name  17_48_41 log36
+ulgFileName = '06_09_13'; % the ulog file name  17_48_41 log36
 tmp=[ ulgFileName '.mat'];
 % exist tmp var
 if exist(tmp,"file")
@@ -106,9 +106,8 @@ end
 % time1=position_estimator(:,1);
 % ekf3_V_xyz = velocity_estimator(:,2:4);
 
+%% 
 estimator_status=load('../results/estimator_status.txt');
-
-
 % uint32 control_mode_flags	# Bitmask to indicate EKF logic state
 % uint8 CS_TILT_ALIGN = 0		# 0 - true if the filter tilt alignment is complete
 % uint8 CS_YAW_ALIGN = 1		# 1 - true if the filter yaw alignment is complete
@@ -130,6 +129,7 @@ control_mode_flags=dec2bin(estimator_status(:,2))
 % # 10 - true if the X optical flow observation has been rejected
 % # 11 - true if the Y optical flow observation has been rejected
 innovation_check_flags=dec2bin(estimator_status(:,3))
+%% 
 
 % or use csv
 ECL = importdata('../results/ecloutput.csv');%https://blog.csdn.net/JingpengSun/article/details/128840264
